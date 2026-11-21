@@ -1,0 +1,11 @@
+__pycache__/
+.ipynb_checkpoints/
+tmp/
+data/*.h5
+data/ca_rn_adj.npy
+data/ca_meta.csv
+data/*ranges.json
+data/sd_prepared.npz
+*.zip
+checkpoints/*_openvino.bin
+checkpoints/*_openvino.xml
