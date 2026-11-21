@@ -21,7 +21,8 @@ def main():
     records={}
     modes=['fixed'] if args.smoke else ['temporal','fixed','adaptive','hybrid']
     if args.smoke:
-        fixed=normalize_fixed(torch.eye(716))
+        torch.manual_seed(1)
+        fixed=normalize_fixed(torch.rand(716,716))
         data=None
     else:
         fixed=normalize_fixed(torch.tensor(np.load(ROOT/'data'/'sd_adj.npy')))

@@ -45,6 +45,9 @@ python src/execute_notebook.py 02_data_and_checks.ipynb
 python src/execute_notebook.py 03_forecasting_experiments.ipynb
 python src/execute_notebook.py 04_npu_inference.ipynb
 python src/build_report.py
+python src/render_report.py
+python src/verify_submission.py
+python src/package_submission.py
 ```
 
 Notebook execution saves actual outputs after each cell. Standard Jupyter **Run All** also works. `src/make_notebooks.py` creates fresh, unexecuted notebook templates; do not run it over saved outputs unless you intend to regenerate and execute them again.

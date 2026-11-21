@@ -28,7 +28,7 @@ def page(title):
     p(title,'Heading1')
 
 def table(rows,widths=None,small=False):
-    cells=[[Paragraph(str(c),styles['Small' if small else 'Table']) for c in row] for row in rows]
+    cells=[[Paragraph(str(c),styles['TableHead'] if ri==0 else styles['Small' if small else 'Table']) for c in row] for ri,row in enumerate(rows)]
     t=Table(cells,colWidths=widths,repeatRows=1,hAlign='LEFT')
     t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#133e52')),
         ('TEXTCOLOR',(0,0),(-1,0),colors.white),('VALIGN',(0,0),(-1,-1),'TOP'),
@@ -58,6 +58,7 @@ def main():
     styles.add(ParagraphStyle(name='Body',fontName='BodyFont',fontSize=9.5,leading=13,spaceAfter=7,textColor=colors.HexColor('#20333e')))
     styles.add(ParagraphStyle(name='Table',parent=styles['Body'],fontSize=8.5,leading=11,spaceAfter=0))
     styles.add(ParagraphStyle(name='Small',parent=styles['Table'],fontSize=7.7,leading=10))
+    styles.add(ParagraphStyle(name='TableHead',parent=styles['Table'],fontName='BodyBold',textColor=colors.white))
     styles.add(ParagraphStyle(name='Caption',parent=styles['Body'],fontSize=8,leading=10.5,textColor=colors.HexColor('#50616c'),spaceAfter=10))
     for name in ['Title','Heading1','Heading2']:
         styles[name].fontName='BodyBold';styles[name].textColor=colors.HexColor('#133e52')
@@ -132,7 +133,7 @@ def main():
         r=prep['splits'][name];rows.append([label,f'{r["timestamps"]:,}',f'{r["windows"]:,}',f'{r["missing_bins"]:,}'])
     table(rows,[190,90,90,110])
     p('Within each split, input gaps are forward-filled, with each sensor\'s training median as the fallback at the beginning of a split (zero only if that sensor has no training observations). Validation/test values never enter training statistics. Missing targets are excluded from the loss and every reported error; filled targets are never treated as labels.')
-    fig('q3_week.png','Figure 2. Complete calendar week, 3-9 February 2020. Sensors are predetermined nodes 0,358,715; gaps remain visible in the observed series.',maxheight=225)
+    fig('q3_week.png','Figure 2. Complete calendar week, 3-9 February 2020. Sensors are predetermined nodes 0,358,715; gaps remain visible in the observed series.',maxheight=180)
 
     page('Q3(b-c) - Road graph and neighborhoods')
     h('Graph construction and direction')
@@ -140,9 +141,9 @@ def main():
     p('A nonzero A<sub>ij</sub> is a retained weighted road-distance relationship. LargeST uses a thresholded Gaussian of shortest driving distance [4]; it is a strength, rather than the distance itself. Our multiplication convention is that row i receives the feature of node j with this weight. This convention need not mean vehicles travel from j to i.')
     fig('q3_graph.png','Figure 3. Adjacency in the verified sensor order and distribution of non-self row neighbors. Raw self-loops are included in the heatmap and excluded from the degree count.',maxheight=225)
     h(f'Example: sensor {prep["neighborhood_id"]} (node {prep["neighborhood_node"]})')
-    p('The example is selected using only the road graph: the first node whose degree is closest to the median. For interpretation, exclude the focal node from neighborhood sets; the provided diagonal is handled separately as a self-loop.')
-    p('<b>One-hop sensor IDs:</b> '+', '.join(map(str,prep['one_hop_ids']))+'.')
-    p('<b>At-most-two-hop sensor IDs (excluding focal node):</b> '+', '.join(map(str,prep['at_most_two_hop_ids']))+'.')
+    p('The example is selected using only the road graph: the first node whose non-self degree is closest to the median. The lists below follow the assignment literally: N(i)={j:Aij≠0}. Thus a provided self-loop includes the focal sensor itself; non-self degrees in the histogram exclude it.')
+    p('<b>One-hop sensor IDs:</b> '+', '.join(map(str,prep['literal_one_hop_ids']))+'.')
+    p('<b>At-most-two-hop sensor IDs:</b> '+', '.join(map(str,prep['literal_at_most_two_hop_ids']))+'.')
     p('Nearby sensors can reveal upstream congestion, downstream bottlenecks and common demand changes before the local series fully reflects them. One layer combines immediate row neighbors. Two layers can propagate information along paths of length two, while repeated self-loops also retain shorter paths. More layers can blend distinct local states (oversmoothing), compress many distant signals (oversquashing), increase noise and overfit; greater depth is therefore not automatically better.')
 
     page('Q4 - Spatio-temporal forecasting')

@@ -81,6 +81,8 @@ def main():
     one=set(np.flatnonzero(binary[node]).tolist())
     two=one.union(*[set(np.flatnonzero(binary[j]).tolist()) for j in one]) if one else set()
     two.discard(node)
+    literal_one=set(np.flatnonzero(A[node]>0).tolist())
+    literal_two=literal_one.union(*[set(np.flatnonzero(A[j]>0).tolist()) for j in literal_one]) if literal_one else set()
     save_json('preparation.json',dict(nodes=716, raw=raw_stats,splits=stats,mean=mu,std=std,
         aggregation='sum of three 5-minute counts; vehicles per 15 minutes',
         selected_plot_nodes=selected,selected_plot_ids=sd.ID.iloc[selected].tolist(),
@@ -90,6 +92,8 @@ def main():
         degree_mean=float(degree.mean()),neighborhood_node=node,neighborhood_id=int(sd.ID.iloc[node]),
         one_hop_nodes=sorted(one),one_hop_ids=sd.ID.iloc[sorted(one)].tolist(),
         at_most_two_hop_nodes=sorted(two),at_most_two_hop_ids=sd.ID.iloc[sorted(two)].tolist(),
+        literal_one_hop_ids=sd.ID.iloc[sorted(literal_one)].tolist(),
+        literal_at_most_two_hop_ids=sd.ID.iloc[sorted(literal_two)].tolist(),
         ordering_check='All 8600 metadata IDs equal raw HDF axis0 IDs; adjacency sliced with SD ID2 in same order'))
     print((ROOT/'results'/'preparation.json').read_text())
 
