@@ -19,6 +19,19 @@ Public repository: [msbasit/AI651_PA3](https://github.com/msbasit/AI651_PA3).
 - `checkpoints/{temporal,fixed,adaptive,hybrid}.pt`: validation-selected FP32 model weights.
 - `data/sd_meta.csv`, `data/sd_adj.npy`, `data/training_fallback.npy`: small derived artifacts. Large raw files and the prepared cache are excluded from Git.
 
+## Measured results
+
+| Model | Validation MAE | Test MAE | Test RMSE | Training seconds | Epochs / selected |
+|---|---:|---:|---:|---:|---:|
+| Temporal-only | 57.73 | 65.72 | 103.88 | 277.2 | 20 / 19 |
+| Fixed graph | 109.44 | 123.28 | 192.00 | 375.9 | 20 / 18 |
+| Adaptive graph | 107.45 | 124.01 | 187.90 | 277.2 | 13 / 8 |
+| Hybrid graph | 85.89 | 97.69 | 149.46 | 477.1 | 20 / 20 |
+
+Errors are vehicles per 15-minute interval. Every model is scored on the same 26,389 test windows and 71,023,748 valid sensor-horizon targets. The temporal baseline wins this single-seed, finite-budget comparison. This does not establish that spatial information is generally unhelpful; the report discusses mixing losses, global scaling and the lack of a separate local path in this particular graph architecture.
+
+Training times are synchronized XPU wall times including epoch validation. Hybrid epoch 13 took 67.2 seconds versus about 21 seconds for nearby epochs; the outlier is retained in its total. Full precision results are in `results/metrics.json`; deployment results are in `results/npu_metrics.json`.
+
 ## Environment
 
 Use **Python 3.12 with Intel XPU-enabled PyTorch**. The measured machine uses a Core Ultra 7 255H, Intel Arc 140T integrated GPU and Intel AI Boost NPU. Exact versions and driver details are saved in `results/environment.json` and `results/hardware.json`.

@@ -14,7 +14,6 @@ def main():
     # Exhaustively check Yes rules over every legal count triple.
     mean = triples/triples.sum(1, keepdims=True)
     maximum = (triples>0).astype(int)
-    assert np.array_equal(triples[:,1], triples[:,1])
     assert np.array_equal(mean[:,0]>.5, triples[:,0] > triples.sum(1)/2)
     assert np.array_equal(maximum[:,0]>0, triples[:,0]>0)
     x = np.exp(-(np.arange(40)-20)**2/8)

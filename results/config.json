@@ -1,0 +1,20 @@
+{
+  "seed": 25280025,
+  "hidden": 16,
+  "embedding": 8,
+  "alpha": 0.5,
+  "batch": 64,
+  "max_epochs": 20,
+  "patience": 5,
+  "optimizer": "Adam",
+  "lr": 0.002,
+  "weight_decay": 0.0001,
+  "clip_norm": 5.0,
+  "loss": "masked MAE in globally standardized units",
+  "selection": "minimum full validation MAE",
+  "precision": "FP32",
+  "fixed_normalization": "row-normalize (A+I), original diagonal retained",
+  "adaptive": "dense row-softmax(ReLU(E1 @ E2.T)); no top-k sparsification",
+  "mean": 584.8475952148438,
+  "std": 487.6829528808594
+}

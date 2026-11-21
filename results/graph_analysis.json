@@ -1,0 +1,28 @@
+{
+  "reference": {
+    "road_nonself_density": 0.033830136344102826,
+    "all_pairs_mean_distance_km": 27.09164706813094,
+    "all_pairs_under_5km_fraction": 0.058995194749384694,
+    "road_edges_mean_distance_km": 2.2795987002687443
+  },
+  "adaptive": {
+    "top10_road_overlap": 0.04399441340782123,
+    "top10_mean_distance_km": 24.59739602393445,
+    "top10_median_distance_km": 21.60518245754068,
+    "top10_under_5km_fraction": 0.06522346368715083,
+    "top10_edges": 7160,
+    "mean_row_entropy": 6.313493728637695,
+    "uniform_entropy": 6.573680166960646,
+    "mean_self_weight": 0.0018671287689357996
+  },
+  "hybrid": {
+    "top10_road_overlap": 0.053631284916201116,
+    "top10_mean_distance_km": 22.223077779636043,
+    "top10_median_distance_km": 19.15365294937045,
+    "top10_under_5km_fraction": 0.09567039106145252,
+    "top10_edges": 7160,
+    "mean_row_entropy": 4.208889007568359,
+    "uniform_entropy": 6.573680166960646,
+    "mean_self_weight": 0.0007682738360017538
+  }
+}

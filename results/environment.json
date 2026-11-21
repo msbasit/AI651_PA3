@@ -1,0 +1,20 @@
+{
+  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "python_executable": "C:\\Users\\msbasit\\Documents\\Codex\\2026-10-20\\complete-this-assignment-end-to-end\\work\\venv-xpu\\Scripts\\python.exe",
+  "platform": "Windows-11-10.0.26300-SP0",
+  "cpu": "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel",
+  "threads": 8,
+  "gpu": "Intel(R) Arc(TM) 140T GPU (23GB)",
+  "torch": "2.14.1+xpu",
+  "packages": {
+    "numpy": "2.5.2",
+    "pandas": "3.0.6",
+    "h5py": "3.16.0",
+    "matplotlib": "3.11.2",
+    "openvino": "2026.4.1",
+    "nbformat": "5.11.1",
+    "reportlab": "5.1.0"
+  },
+  "timing": "XPU synchronized wall time of training epochs including validation; excludes data loading, final evaluation and first warmup",
+  "deterministic_note": "Fixed seeds and batch order; bitwise XPU determinism is not guaranteed."
+}

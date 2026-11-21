@@ -24,7 +24,7 @@ def main():
         else:
             pix=page.get_pixmap(matrix=fitz.Matrix(1.4,1.4),alpha=False)
             png=out/f'page_{i+1:02d}.png';pix.save(png)
-        text=page.get_text()
+        text=page.get_text(sort=True)
         blocks=page.get_text('blocks')
         outside=[list(b[:4]) for b in blocks if b[0]<10 or b[1]<10 or b[2]>page.rect.width-10 or b[3]>page.rect.height-10]
         assert not outside,(i+1,outside)

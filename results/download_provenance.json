@@ -1,0 +1,34 @@
+[
+  {
+    "file": "ca_his_raw_2020.h5",
+    "url": "https://huggingface.co/datasets/ttydsc30/TrafficForecast-LargeST-Project-Dataset/resolve/fcdd669cb606db00ddb42d526fdde4fb482b2d32/data/raw/2020.h5",
+    "bytes": 7253073656,
+    "sha256": "ee088046e12f14eb541add51b2216934de98ca8127867eb90ffe5ab3f0fa94c6",
+    "mirror_revision": "fcdd669cb606db00ddb42d526fdde4fb482b2d32",
+    "verified_lfs_digest": true
+  },
+  {
+    "file": "ca_his_raw_2021.h5",
+    "url": "https://huggingface.co/datasets/ttydsc30/TrafficForecast-LargeST-Project-Dataset/resolve/fcdd669cb606db00ddb42d526fdde4fb482b2d32/data/raw/2021.h5",
+    "bytes": 7233256952,
+    "sha256": "9fcfc9682cf9f685d69db6d72936f5de1d3590b92949d1e339443271d3946374",
+    "mirror_revision": "fcdd669cb606db00ddb42d526fdde4fb482b2d32",
+    "verified_lfs_digest": true
+  },
+  {
+    "file": "ca_rn_adj.npy",
+    "url": "https://huggingface.co/datasets/ttydsc30/TrafficForecast-LargeST-Project-Dataset/resolve/fcdd669cb606db00ddb42d526fdde4fb482b2d32/data/raw/adjacency.npy",
+    "bytes": 591680128,
+    "sha256": "4ff444b34f2280c9c9be22c5cc2bc62ec16cc13c09b24b3c9b02975a38805fbe",
+    "mirror_revision": "fcdd669cb606db00ddb42d526fdde4fb482b2d32",
+    "verified_lfs_digest": true
+  },
+  {
+    "file": "ca_meta.csv",
+    "url": "https://huggingface.co/datasets/ttydsc30/TrafficForecast-LargeST-Project-Dataset/resolve/fcdd669cb606db00ddb42d526fdde4fb482b2d32/data/raw/metadata.csv",
+    "bytes": 570431,
+    "sha256": "57c5edb5e6f1d1802440426f2bd07f54d812859135989c740ab96b1448b087ee",
+    "mirror_revision": "fcdd669cb606db00ddb42d526fdde4fb482b2d32",
+    "verified_lfs_digest": false
+  }
+]

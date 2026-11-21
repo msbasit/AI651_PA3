@@ -61,7 +61,7 @@ def main():
     np.savez_compressed(ROOT/'data'/'sd_prepared.npz',**payload)
     np.save(ROOT/'data'/'training_fallback.npy',fallback.to_numpy(np.float32))
     selected=[0, len(sd)//2, len(sd)-1]
-    fig,axes=plt.subplots(3,1,figsize=(10,6),sharex=True,layout='constrained')
+    fig,axes=plt.subplots(3,1,figsize=(10,3.7),sharex=True,layout='constrained')
     week=full.loc['2020-02-03':'2020-02-09']
     for ax,i in zip(axes,selected):
         ax.plot(week.index,week.iloc[:,i],lw=.8)

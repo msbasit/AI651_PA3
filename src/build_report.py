@@ -1,6 +1,7 @@
 """Build a paginated PDF using only measured experiment artifacts."""
 import html
 import json
+import statistics
 from pathlib import Path
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
@@ -42,8 +43,8 @@ def fig(name,caption,width=475,maxheight=270):
     path=ROOT/'figures'/name
     w,h=ImageReader(str(path)).getSize()
     scale=min(width/w,maxheight/h)
-    STORY.append(Image(str(path),width=w*scale,height=h*scale,hAlign='CENTER'))
-    p(caption,'Caption')
+    STORY.append(KeepTogether([Image(str(path),width=w*scale,height=h*scale,hAlign='CENTER'),
+                              Paragraph(caption,styles['Caption'])]))
 
 def footer(canvas,doc):
     canvas.setStrokeColor(colors.HexColor('#c7d3d8'));canvas.line(45,38,550,38)
@@ -79,13 +80,20 @@ def main():
     p('Prepared 21 November 2026. Full AI-use disclosure appears at the end of this report.')
     h('Scope and outcome')
     p('Questions 1-2 establish what aggregation preserves and how direction can enter a graph layer. Questions 3-7 implement four lightweight forecasters using all 716 San Diego sensors, 2020 training data, January-March 2021 validation data, and April-December 2021 test data. Each prediction uses eight 15-minute observations and forecasts four further intervals.')
-    p(f'The lowest measured test MAE is from <b>{best}</b>: <b>{metrics[best]["test"]["mae"]:.2f}</b> vehicles per 15 minutes. The relative reduction versus temporal-only is {improvement:.2f}%. These are single-seed, finite-budget comparisons; they do not establish a universal ranking or statistical significance.')
+    outcome=('None of the graph variants improves on the temporal-only test MAE under this protocol.' if best=='temporal' else f'This is a {improvement:.2f}% relative MAE reduction versus temporal-only.')
+    p(f'The lowest measured test MAE is from <b>{best}</b>: <b>{metrics[best]["test"]["mae"]:.2f}</b> vehicles per 15 minutes. {outcome} These are single-seed, finite-budget comparisons; they do not establish a universal ranking or statistical significance.')
     h('Final test comparison (all four horizons pooled)')
     rows=[['Model','Adjacency','MAE','RMSE','Train time (s)']]
     for mode,label,adj in [('temporal','Temporal-only','None'),('fixed','STGNN','Fixed'),('adaptive','STGNN','Adaptive'),('hybrid','STGNN','Hybrid')]:
         r=metrics[mode]; rows.append([label,adj,f'{r["test"]["mae"]:.2f}',f'{r["test"]["rmse"]:.2f}',f'{r["training_seconds"]:.1f}'])
     table(rows,[110,90,75,75,130])
     p('Errors are in vehicles per 15-minute interval. Metrics pool every valid sensor/horizon target over the same full test period. Training times include all executed epochs and epoch validation, with synchronized XPU wall time; preparation, warmup and final evaluation are excluded. Early stopping can give different realized durations under the same rule.','Caption')
+    for mode in metrics:
+        hist=read(f'{mode}_history.json')
+        median=statistics.median(r['seconds'] for r in hist)
+        unusual=[r for r in hist if r['seconds']>2*median]
+        for r in unusual:
+            p(f'Timing note: {mode} epoch {r["epoch"]} took {r["seconds"]:.1f}s versus a median {median:.1f}s. This wall-time outlier is retained in the reported total; training times are not isolated kernel-throughput measurements.','Caption')
     h('Hardware')
     p(f'{html.escape(hw["cpu"])}; {hw["ram_bytes"]/2**30:.1f} GiB system RAM. Training and primary inference: {html.escape(env["gpu"])} using PyTorch {env["torch"]}. Additional full-test inference: Intel AI Boost through OpenVINO {env["packages"]["openvino"]}. The GPU memory label describes shared integrated-GPU memory, not dedicated VRAM.')
 
@@ -107,7 +115,7 @@ def main():
     ['Any slowing','Sum','Yes','Test first coordinate s &gt; 0.'],
     ['Any slowing','Mean','Yes','Test first coordinate s/n &gt; 0 (n is nonzero).'],
     ['Any slowing','Max','Yes','Test first coordinate = 1.']]
-    table(rows,[86,48,51,295],small=True)
+    table(rows,[86,48,61,285],small=True)
 
     page('Q2 - Which way is the slowdown moving?')
     h('(a) Equal weights diffuse the pattern')
@@ -152,10 +160,10 @@ def main():
     p(f'A single global mean <b>{prep["mean"]:.5f}</b> and standard deviation <b>{prep["std"]:.5f}</b> are computed from the filled 2020 input series only. All models receive (x-mean)/std. Predictions are inverted before MAE and RMSE; using one global scale keeps every valid sensor-count error equally weighted in the loss.')
     h('(b-c) Architecture and controlled baseline')
     table([['Stage','Operation / shape'],['Temporal encoder','Shared Conv2d(1,16,kernel=(1,3),padding=(0,1)), ReLU; Conv2d(16,16,(1,3),same padding), ReLU. Convolution spans time only.'],['Temporal representation','Flatten each sensor\'s 16×8 feature map, then Linear(128,16), yielding Z in B×716×16.'],['Spatial layer','H=ReLU(Â Z Wg), Wg in 16×16 with no bias. One node-mixing layer.'],['Forecast head','Linear(16,4) per sensor, reshaped to B×4×716×1. Predict all horizons directly.'],['Temporal-only','Same encoder, channel projection Wg, nonlinearity and head, with identity node mixing. No neighbor exchange.']],[110,370])
-    p(f'Fixed and temporal-only models each have {metrics["fixed"]["parameters"]:,} trainable parameters; adaptive/hybrid add two 716×8 embedding matrices ({metrics["adaptive"]["parameters"]:,} parameters total). Shared encoder/projection/head initial weights are checked to be identical across all four experiments.')
+    p(f'Temporal/fixed: <b>{metrics["fixed"]["parameters"]:,}</b> parameters. Adaptive/hybrid: <b>{metrics["adaptive"]["parameters"]:,}</b>, including two 716×8 embeddings. Shared encoder, projection and head initial weights are identical across all experiments.')
     h('Training and model selection')
-    p('All models use seed 25280025, FP32, Adam (learning rate 0.002, weight decay 0.0001), batch 64, gradient norm clipping at 5, maximum 20 epochs and early stopping after five epochs without a new minimum validation MAE. Every training window is used each epoch. A separate epoch-seeded shuffle generator gives identical batch order across models. There is no learning-rate or architecture search on test data. Fixed seeds improve reproducibility, but bitwise deterministic XPU execution is not guaranteed.')
-    p('Loss is absolute standardized error summed over valid targets and divided by their count. Full validation MAE selects the checkpoint; final metrics use that checkpoint. The common test mask includes real zeros and excludes only bins with invalid constituent measurements. The pooled metric counts overlapping-window horizon forecasts separately, as required by the forecasting task.')
+    p('All runs use seed 25280025, FP32, Adam (lr 0.002, weight decay 0.0001), batch 64, norm clipping at 5, maximum 20 epochs and patience 5. Every training window is used, with identical epoch-seeded shuffles. Minimum full-validation MAE selects the checkpoint. Test data never select learning rates or architecture. Fixed seeds do not guarantee bitwise XPU determinism.')
+    p('Loss is masked MAE in standardized units. Original-unit metrics pool errors over valid targets, excluding filled labels and retaining real zeros. Overlapping-window horizon forecasts count separately, with the same mask for all models. Every final metric uses the validation-selected checkpoint.')
     fig('q6_learning.png','Figure 4. Validation learning curves and test MAE at 15,30,45,60 minutes. The latter uses each model\'s validation-selected checkpoint.',maxheight=200)
 
     page('Q5 - Fixed, adaptive and hybrid adjacency')
@@ -171,9 +179,8 @@ def main():
         r=metrics[mode];rows.append([mode.title(),f'{r["validation"]["mae"]:.2f}',f'{r["validation"]["rmse"]:.2f}',f'{r["test"]["mae"]:.2f}',f'{r["test"]["rmse"]:.2f}',f'{r["epochs_run"]} / {r["best_epoch"]}'])
     table(rows,[85,72,80,72,80,91])
     baseline=metrics['temporal']['test']['mae']
-    for mode in ['fixed','adaptive','hybrid']:
-        delta=(baseline-metrics[mode]['test']['mae'])/baseline*100
-        p(f'{mode.title()} changes test MAE by <b>{delta:+.2f}% reduction</b> relative to temporal-only. Its validation MAE is {metrics[mode]["validation"]["mae"]:.2f}. A graph prior helps only when useful neighbor information outweighs mixing losses and estimation error; the observed comparison, rather than graph complexity alone, determines the conclusion here.')
+    deltas={mode:(baseline-metrics[mode]['test']['mae'])/baseline*100 for mode in ['fixed','adaptive','hybrid']}
+    p('Relative test-MAE reductions versus temporal-only: '+', '.join(f'<b>{mode} {delta:+.2f}%</b>' for mode,delta in deltas.items())+'. A negative reduction means higher error. Useful neighbor information must outweigh mixing losses and graph-estimation error. Keeping the local temporal signal only can win when this single graph layer mixes unlike sensor states too strongly.')
 
     page('Q6(a) - Forecasting comparison')
     p('The final comparison table on page 1 reports original-unit MAE, RMSE and synchronized training time. Figure 6 compares actual measurements with all four saved models for the same three predetermined sensors and dates. These are 15-minute-ahead forecasts; the table below also reports longer horizons over the entire test period.')
@@ -195,7 +202,7 @@ def main():
     table(rows,[176,76,67,71,90],small=True)
     p('The hybrid row in this table analyzes its learned component alone, rather than the mixed matrix that mechanically contains fixed-road edges. The uniform-pair reference describes all 716×715 off-diagonal possibilities; it is not a separately fitted random graph. Selection ties are resolved deterministically by NumPy index sorting.')
     r=graphs['adaptive']
-    p(f'The adaptive top-ten links overlap the road graph at {100*r["top10_road_overlap"]:.2f}%, versus its density of {100*ref["road_nonself_density"]:.2f}%. Their mean geographic separation is {r["top10_mean_distance_km"]:.2f} km, versus {ref["all_pairs_mean_distance_km"]:.2f} km across all non-self pairs. Thus the learned links are {"more local on average" if r["top10_mean_distance_km"]<ref["all_pairs_mean_distance_km"] else "not more local on average"} under this metric; exact road-edge correspondence remains a separate question.')
+    p(f'The adaptive top-ten links overlap the road graph at {100*r["top10_road_overlap"]:.2f}%, versus its density of {100*ref["road_nonself_density"]:.2f}%. Their mean geographic separation is {r["top10_mean_distance_km"]:.2f} km, versus {ref["all_pairs_mean_distance_km"]:.2f} km across all non-self pairs. They are {"more local on average" if r["top10_mean_distance_km"]<ref["all_pairs_mean_distance_km"] else "not more local on average"} than uniform pairs, but much less local than road edges (mean {ref["road_edges_mean_distance_km"]:.2f} km). The map shows many strongest links converging on a common eastern anchor rather than tracing individual road segments.')
     p(f'Mean adaptive row entropy is {r["mean_row_entropy"]:.3f} nats (uniform would be {r["uniform_entropy"]:.3f}); mean self-weight is {r["mean_self_weight"]:.5f}. Ranking small differences in a diffuse row can overstate link importance, so top-ten membership alone should not be interpreted as strong evidence of physical connectivity.')
     fig('q6_learned_map.png','Figure 7. Strongest non-self adaptive link for each of 60 evenly spaced node indices, plotted at actual coordinates. Straight segments show learned associations, not road routes.',maxheight=255)
     p('Connections absent from the road graph are possible because every pair has a trainable embedding-product logit. They can represent common commuting demand or synchronized usage patterns. They can also reflect confounding, noise or overfitting. Better held-out forecasts would support their predictive usefulness, while causal or physical meaning needs independent evidence.')
@@ -203,7 +210,7 @@ def main():
     page('Q6(c) and Q7 - Discussion and reproducibility')
     h('Interpretation and limitations')
     p('Lower forecasting error does not establish actual road connectivity: many graphs can generate similar predictions, node embeddings are not uniquely identifiable, and correlated demand can connect distant roads. A fixed graph supplies a useful structural prior and may generalize with fewer parameters. An adaptive graph can discover missing associations but may overfit or average away distinctive sensor behavior. The hybrid can balance those effects; it is not guaranteed to dominate either term.')
-    p('A static graph cannot change its dependencies with rush hour, incidents, roadworks, travel direction or travel time. Instantaneous one-hop mixing also omits explicit propagation delays. Future work could condition adjacency on time and recent state, use directed delayed messages, test additional seeds and compare persistence and stronger temporal baselines. These experiments use the specified 2020-2021 shift, including pandemic-related demand changes, rather than an easier shuffled split.')
+    p('Global scaling can mix sensors with different lane capacities and flow levels; the single graph layer has no separate local residual path. Training-only per-sensor scaling and a local skip connection are reasonable follow-ups, not explanations established by this experiment. A static graph also misses rush-hour changes, incidents and propagation delays. Future work should test time-dependent or delayed messages, additional seeds, persistence and stronger temporal baselines. The required 2020-2021 split includes substantial demand shift; results are not a shuffled-split benchmark.')
     h('Hardware execution and measured NPU inference')
     p('All four networks are trained on Intel Arc through native PyTorch XPU kernels. This PyTorch installation has no Intel NPU autograd backend; OpenVINO supplies deployment inference. The NPU is selected explicitly, without AUTO or CPU fallback. Batch 16 failed NPU compilation with "Max striding levels exceeded"; static batch one succeeded. The trained learned graph is frozen only when exporting for inference.')
     rows=[['Mode','NPU MAE','NPU RMSE','Full-test s','Median batch ms']]

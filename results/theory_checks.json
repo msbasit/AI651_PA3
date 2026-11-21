@@ -1,0 +1,12 @@
+{
+  "K": 8,
+  "base": 9,
+  "triples": 164,
+  "unique_codes": 164,
+  "exact_decode": true,
+  "history_max_errors": [
+    2.220446049250313e-16,
+    2.220446049250313e-16
+  ],
+  "symmetric_single_impulse_sse": 0.5
+}

@@ -1,0 +1,18 @@
+OpenVINO devices: ['CPU', 'GPU', 'NPU']
+NPU: Intel(R) AI Boost
+C:\Users\msbasit\Documents\Codex\2026-10-20\complete-this-assignment-end-to-end\work\venv-xpu\Lib\site-packages\torch\jit\_trace.py:1006: FutureWarning: `torch.jit.trace` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+C:\Users\msbasit\Documents\Codex\2026-10-20\complete-this-assignment-end-to-end\work\venv-xpu\Lib\site-packages\torch\jit\_trace.py:1145: FutureWarning: `torch.jit.trace_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+Compiled temporal in 2.1233770999970147 seconds; execution devices: NPU
+NPU FINAL temporal {'device': 'Intel(R) AI Boost', 'execution_devices': 'NPU', 'batch': 1, 'windows': 26389, 'compile_seconds': 2.1233770999970147, 'test_seconds': 14.485224799995194, 'median_batch_ms': 0.4546000127447769, 'mae': 65.72041420595343, 'rmse': 103.8773985687149, 'horizon_mae': [45.53601657199543, 59.32102324137222, 72.24766563768893, 85.77695137275715], 'max_cpu_fp32_vs_npu_difference_first_batch': 0.8516845703125, 'evaluated_values': 71023748, 'precision': 'OpenVINO NPU device default (FP16 graph execution)'}
+C:\Users\msbasit\Documents\Codex\2026-10-20\complete-this-assignment-end-to-end\work\venv-xpu\Lib\site-packages\torch\jit\_trace.py:1006: FutureWarning: `torch.jit.trace` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+C:\Users\msbasit\Documents\Codex\2026-10-20\complete-this-assignment-end-to-end\work\venv-xpu\Lib\site-packages\torch\jit\_trace.py:1145: FutureWarning: `torch.jit.trace_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+  warnings.warn(
+Compiled fixed in 0.26638650000677444 seconds; execution devices: NPU
+NPU FINAL fixed {'device': 'Intel(R) AI Boost', 'execution_devices': 'NPU', 'batch': 1, 'windows': 26389, 'compile_seconds': 0.26638650000677444, 'test_seconds': 17.150749699998414, 'median_batch_ms': 0.4929999995511025, 'mae': 123.28974992281637, 'rmse': 192.0137150947704, 'horizon_mae': [113.62304066385677, 119.5354134013841, 126.27101583211382, 133.72952979391079], 'max_cpu_fp32_vs_npu_difference_first_batch': 1.0513916015625, 'evaluated_values': 71023748, 'precision': 'OpenVINO NPU device default (FP16 graph execution)'}
+Compiled adaptive in 0.23757860000478104 seconds; execution devices: NPU
+NPU FINAL adaptive {'device': 'Intel(R) AI Boost', 'execution_devices': 'NPU', 'batch': 1, 'windows': 26389, 'compile_seconds': 0.23757860000478104, 'test_seconds': 17.64321499998914, 'median_batch_ms': 0.5697000015061349, 'mae': 123.99981039256552, 'rmse': 187.87941390715076, 'horizon_mae': [120.68011023739777, 122.27292158697868, 124.9278502803961, 128.1183594654895], 'max_cpu_fp32_vs_npu_difference_first_batch': 0.6258544921875, 'evaluated_values': 71023748, 'precision': 'OpenVINO NPU device default (FP16 graph execution)'}
+Compiled hybrid in 0.22110840000095777 seconds; execution devices: NPU
+NPU FINAL hybrid {'device': 'Intel(R) AI Boost', 'execution_devices': 'NPU', 'batch': 1, 'windows': 26389, 'compile_seconds': 0.22110840000095777, 'test_seconds': 14.958131799998228, 'median_batch_ms': 0.461799994809553, 'mae': 97.67919087825393, 'rmse': 149.42507248191149, 'horizon_mae': [89.77267106287557, 94.51037640122343, 100.04355549330477, 106.39016055561196], 'max_cpu_fp32_vs_npu_difference_first_batch': 1.00286865234375, 'evaluated_values': 71023748, 'precision': 'OpenVINO NPU device default (FP16 graph execution)'}

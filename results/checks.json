@@ -1,0 +1,24 @@
+{
+  "sensor_order": true,
+  "exact_split_lengths": true,
+  "regular_15_min_grid": true,
+  "split_local_first_last_windows": true,
+  "target_masks": true,
+  "train_only_stats": true,
+  "row_stochastic_graphs": true,
+  "adaptive_gradients_nonzero": true,
+  "identical_shared_initial_weights": true,
+  "input_shape": [
+    2,
+    8,
+    716,
+    1
+  ],
+  "output_shape": [
+    2,
+    4,
+    716,
+    1
+  ],
+  "seed": 25280025
+}

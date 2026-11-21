@@ -1,0 +1,32 @@
+{
+  "notebooks": {
+    "01_theory.ipynb": {
+      "code_cells": 3,
+      "all_executed": true,
+      "no_errors": true
+    },
+    "02_data_and_checks.ipynb": {
+      "code_cells": 4,
+      "all_executed": true,
+      "no_errors": true
+    },
+    "03_forecasting_experiments.ipynb": {
+      "code_cells": 9,
+      "all_executed": true,
+      "no_errors": true
+    },
+    "04_npu_inference.ipynb": {
+      "code_cells": 2,
+      "all_executed": true,
+      "no_errors": true
+    }
+  },
+  "common_test_metric_count": 71023748,
+  "all_models_have_checkpoints": true,
+  "consistent_training_configs": true,
+  "finite_checkpoint_weights": true,
+  "full_test_npu": true,
+  "report_pages": 11,
+  "first_page_identity_and_public_link": true,
+  "sha256_report": "c7283949eb96a3b048855a2cc3daef9b3d1f1b9e8ae0fd0a8fbc8dfc4a104b25"
+}

@@ -17,4 +17,7 @@ def figure(name):
     plt.close()
 
 def load_data():
-    return np.load(ROOT/'data'/'sd_prepared.npz')
+    # NpzFile indexing decompresses an entire member on every access. Materialize
+    # once so window loops do not repeatedly decode the complete test series.
+    with np.load(ROOT/'data'/'sd_prepared.npz') as archive:
+        return {key:archive[key] for key in archive.files}
