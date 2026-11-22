@@ -74,6 +74,7 @@ def main():
     (ROOT/'README.md').write_text(text.strip()+'\n',encoding='utf-8')
     print('Built README report and comparison chart from measured records.')
 
+# Code-delimited math with display style renders inside GitHub details sections.
 TEMPLATE=r'''
 # Traffic Forecasting on Graphs
 
@@ -104,17 +105,11 @@ Errors are **vehicles per 15-minute interval**, pooled over all four forecast ho
 
 Persistence repeats each sensor's last observed count for all four future steps. If the last count is 500, the forecast is **500, 500, 500, 500**. It requires no training and provides a sanity check for the learned models.
 
-```math
-\widehat y^{\mathrm{persist}}_{s,h,i}=x_{s+7,i},\qquad h\in\{0,1,2,3\}.
-```
+$`\displaystyle \widehat y^{\mathrm{persist}}_{s,h,i}=x_{s+7,i},\qquad h\in\{0,1,2,3\}.`$
 
 Let $m_{s,h,i}$ mark an originally valid target and let $C=\sum_{s,h,i}m_{s,h,i}$. Predictions are returned to each sensor's original units before evaluation:
 
-```math
-\operatorname{MAE}=\frac{1}{C}\sum_{s,h,i}m_{s,h,i}\left|\widehat y_{s,h,i}-y_{s,h,i}\right|,
-\qquad
-\operatorname{RMSE}=\sqrt{\frac{1}{C}\sum_{s,h,i}m_{s,h,i}\left(\widehat y_{s,h,i}-y_{s,h,i}\right)^2}.
-```
+$`\displaystyle \begin{gathered}\mathrm{MAE}=\frac{1}{C}\sum_{s,h,i}m_{s,h,i}\left|\widehat y_{s,h,i}-y_{s,h,i}\right|, \\ \mathrm{RMSE}=\sqrt{\frac{1}{C}\sum_{s,h,i}m_{s,h,i}\left(\widehat y_{s,h,i}-y_{s,h,i}\right)^2}.\end{gathered}`$
 
 RMSE penalizes large failures more strongly. Overlapping-window forecasts count separately. XPU reductions use FP32, with batch totals accumulated in CPU FP64. Missing observations are excluded rather than treated as zero labels. [Raw model metrics](results/metrics.json) · [Baseline measurements](results/baselines.json)
 
@@ -139,11 +134,7 @@ Training uses **Adam, learning rate 0.002, batch 64, hidden dimension 16, FP32, 
 
 Per-sensor normalization must not accidentally give low-volume sensors greater weight in the physical-unit loss. For a batch with $C_{\mathcal B}$ valid targets, normalized predictions are weighted by each training standard deviation $\sigma_i$:
 
-```math
-\mathcal L_{\mathcal B}=\frac{1}{S_{\mathrm{train}}C_{\mathcal B}}
-\sum_{(s,h,i)\in\mathcal B}m_{s,h,i}\sigma_i
-\left|\widehat{\widetilde y}_{s,h,i}-\widetilde y_{s,h,i}\right|.
-```
+$`\displaystyle \mathcal L_{\mathcal B}=\frac{1}{S_{\mathrm{train}}C_{\mathcal B}} \sum_{(s,h,i)\in\mathcal B}m_{s,h,i}\sigma_i \left|\widehat{\widetilde y}_{s,h,i}-\widetilde y_{s,h,i}\right|.`$
 
 $S_{\mathrm{train}}$ is one common training-only scale for numerical conditioning, so this is proportional to original-unit MAE. Gradients are clipped to norm 5. Forecasting weights use weight decay 0.0001; **graph embeddings use zero weight decay**. An intermediate diagnostic found that coupled decay otherwise erased the weak-gradient embeddings, producing a uniform graph. Adaptive/hybrid training was repeated after that structural check. [Diagnostic record](results/optimizer_diagnostic.json)
 
@@ -157,10 +148,7 @@ All shared encoder, local projection, and forecast-head weights have identical i
 
 @@SPLITS@@
 
-```math
-X_s=[x_s,\ldots,x_{s+7}]\in\mathbb R^{8\times716\times1},\qquad
-Y_s=[x_{s+8},\ldots,x_{s+11}]\in\mathbb R^{4\times716\times1}.
-```
+$`\displaystyle \begin{gathered}X_s=[x_s,\ldots,x_{s+7}]\in\mathbb R^{8\times716\times1}, \\ Y_s=[x_{s+8},\ldots,x_{s+11}]\in\mathbb R^{4\times716\times1}.\end{gathered}`$
 
 ![Provided directed adjacency matrix and non-self row degree distribution](figures/q3_graph.png)
 
@@ -173,18 +161,13 @@ The supplied directed graph has **18,035 nonzero entries**, including **716 self
 
 Three complete five-minute count intervals are **summed** to preserve volume:
 
-```math
-x_t^{(15\mathrm{min})}=\sum_{k=0}^{2}x_{3t+k}^{(5\mathrm{min})}.
-```
+$`\displaystyle x_t^{(15\mathrm{min})}=\sum_{k=0}^{2}x_{3t+k}^{(5\mathrm{min})}.`$
 
 This differs from the official benchmark's mean-and-round convention, so the numerical error scale is not directly comparable with that benchmark. Nonfinite and negative raw values are invalid; true zeros remain valid. A partial 15-minute bin is not a valid target.
 
 Chronological splits are applied **before input filling**. Gaps are forward-filled within their own split, then use a per-sensor training median if needed. Labels retain the original validity masks. Each sensor's mean and standard deviation come only from the filled **2020 training series**:
 
-```math
-\widetilde x_{t,i}=\frac{x_{t,i}-\mu_i}{\sigma_i},\qquad
-\widehat y_{s,h,i}=\sigma_i\widehat{\widetilde y}_{s,h,i}+\mu_i.
-```
+$`\displaystyle \widetilde x_{t,i}=\frac{x_{t,i}-\mu_i}{\sigma_i},\qquad \widehat y_{s,h,i}=\sigma_i\widehat{\widetilde y}_{s,h,i}+\mu_i.`$
 
 A constant training series uses unit scale. No window crosses a date boundary, giving $T-11$ windows per split. All 8,600 raw HDF column IDs are checked against metadata before selecting the 716 SD sensors. [Preparation statistics and sensor neighborhoods](results/preparation.json) · [Implementation checks](results/checks.json)
 
@@ -216,10 +199,7 @@ flowchart LR
 
 The **local path** preserves each sensor's representation. Graph models add information from neighbors; temporal-only omits the graph branch. Two temporal convolutions use 16 channels, width 3, padding 1, and ReLU; the flattened eight-step feature map is projected from 128 to 16 features. The final head predicts all four future intervals directly.
 
-```math
-H=\operatorname{ReLU}\!\left(ZW_{\mathrm{local}}+\widehat A ZW_{\mathrm{graph}}\right),\qquad
-\widehat Y=\operatorname{Head}(H).
-```
+$`\displaystyle H=\mathrm{ReLU}\!\left(ZW_{\mathrm{local}}+\widehat A ZW_{\mathrm{graph}}\right),\qquad \widehat Y=\mathrm{Head}(H).`$
 
 | Variant | Adjacency | Trainable parameters |
 |---|---|---:|
@@ -232,22 +212,13 @@ H=\operatorname{ReLU}\!\left(ZW_{\mathrm{local}}+\widehat A ZW_{\mathrm{graph}}\
 
 For the fixed graph, clear the provided diagonal, add **exactly one unit self-loop**, then row normalize:
 
-```math
-A_{\mathrm{off}}=A-\operatorname{diag}(\operatorname{diag}(A)),\qquad
-\widehat A_{\mathrm{fixed}}=D^{-1}(A_{\mathrm{off}}+I),\qquad
-D_{ii}=\sum_j(A_{\mathrm{off}}+I)_{ij}.
-```
+$`\displaystyle \begin{gathered}A_{\mathrm{off}}=A-\mathrm{diag}(\mathrm{diag}(A)), \\ \widehat A_{\mathrm{fixed}}=D^{-1}(A_{\mathrm{off}}+I), \\ D_{ii}=\sum_j(A_{\mathrm{off}}+I)_{ij}.\end{gathered}`$
 
 Two independent $716\times10$ standard-normal embedding matrices define the adaptive graph:
 
-```math
-E_1,E_2\sim\mathcal N(0,1),\qquad
-\widehat A_{\mathrm{adaptive}}=\operatorname{softmax}_{\mathrm{row}}\!\left(\operatorname{ReLU}(E_1E_2^\top)\right).
-```
+$`\displaystyle E_1,E_2\sim\mathcal N(0,1),\qquad \widehat A_{\mathrm{adaptive}}=\mathrm{softmax}_{\mathrm{row}}\!\left(\mathrm{ReLU}(E_1E_2^\top)\right).`$
 
-```math
-\widehat A_{\mathrm{hybrid}}=0.5\widehat A_{\mathrm{fixed}}+0.5\widehat A_{\mathrm{adaptive}}.
-```
+$`\displaystyle \widehat A_{\mathrm{hybrid}}=0.5\widehat A_{\mathrm{fixed}}+0.5\widehat A_{\mathrm{adaptive}}.`$
 
 All rows sum to one. The adaptive graph remains **dense and differentiable through softmax and positive ReLU logits**; negative logits have zero ReLU gradient at that step. No top-k training sparsification is used. Top-ten links are selected only for analysis after training.
 
@@ -278,18 +249,13 @@ The theory in Q1–Q2 explains why the information retained by a graph layer mat
 
 An affine scalar message preserves only the neighborhood size $n_v$ and total state $S_v$:
 
-```math
-\sum_{u\in\mathcal N(v)}\phi(x_u)=\sum_{u\in\mathcal N(v)}(wx_u+c)=wS_v+cn_v.
-```
+$`\displaystyle \sum_{u\in\mathcal N(v)}\phi(x_u)=\sum_{u\in\mathcal N(v)}(wx_u+c)=wS_v+cn_v.`$
 
 Neighborhoods $\{-1,+1\}$ and $\{0,0\}$ therefore remain indistinguishable for every $w,c$, although their number of steady sensors differs.
 
 A nonlinear scalar can encode all three counts for neighborhoods of size at most $K$. Let $B=K+1$ and choose:
 
-```math
-\phi(-1)=1,\quad\phi(0)=B,\quad\phi(+1)=B^2,\qquad
-q=n_-+Bn_0+B^2n_+.
-```
+$`\displaystyle \phi(-1)=1,\quad\phi(0)=B,\quad\phi(+1)=B^2,\qquad q=n_-+Bn_0+B^2n_+.`$
 
 The counts are base-$B$ digits, so there are no carries. For $K=8$, $B=9$ and all **164 nonempty count triples** have distinct codes. The simpler message $\phi(x)=x^2$ counts non-steady neighbors.
 
@@ -310,10 +276,7 @@ For counting, $\{0\}$ and $\{0,0\}$ have equal means/maxima but different answer
 
 For an impulse at sensor 20, a symmetric layer predicts $(b,a,b)$ at sensors $(19,20,21)$, but backward motion requires $(1,0,0)$:
 
-```math
-\mathcal L(a,b)=a^2+(b-1)^2+b^2,\qquad
-(a^*,b^*)=(0,\tfrac12),\qquad\mathcal L_{\min}=\tfrac12.
-```
+$`\displaystyle \mathcal L(a,b)=a^2+(b-1)^2+b^2,\qquad (a^*,b^*)=(0,\tfrac12),\qquad\mathcal L_{\min}=\tfrac12.`$
 
 ![True backward motion compared with the recursively applied symmetric neighbor layer](figures/q2_rollouts.png)
 
@@ -321,18 +284,13 @@ The true pattern translates without losing its shape; periodic wrapping occurs i
 
 Direction labels allow separate weights:
 
-```math
-\widehat x_i(t+1)=a x_i(t)+w_-x_{i-1}(t)+w_+x_{i+1}(t),\qquad
-(a,w_-,w_+)=(0,0,1).
-```
+$`\displaystyle \widehat x_i(t+1)=a x_i(t)+w_-x_{i-1}(t)+w_+x_{i+1}(t),\qquad (a,w_-,w_+)=(0,0,1).`$
 
 This exactly gives $x_{i+1}(t)$ for backward motion. With PyTorch cross-correlation, use kernel **[0, 0, 1]**, circular padding 1, and no bias.
 
 One past local value also resolves the ambiguity:
 
-```math
-\widehat x_i(t+1)=x_{i-1}(t)+x_{i+1}(t)-x_i(t-1).
-```
+$`\displaystyle \widehat x_i(t+1)=x_{i-1}(t)+x_{i+1}(t)-x_i(t-1).`$
 
 For backward motion, $x_i(t-1)=x_{i-1}(t)$, leaving $x_{i+1}(t)$. For forward motion, $x_i(t-1)=x_{i+1}(t)$, leaving $x_{i-1}(t)$. Thus the same coefficients **$(a,b,c)=(0,1,-1)$** work in both directions under the stated constant-speed, shape-preserving assumptions. Numerical errors are at floating-point precision. [Implementation](src/theory.py)
 
