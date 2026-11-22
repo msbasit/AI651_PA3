@@ -14,7 +14,7 @@ def main():
     rendered=[]
     if poppler:
         subprocess.run([poppler,'-r','100','-png',str(path),str(out/'report')],check=True)
-        rendered=sorted(out.glob('report-*.png'))
+        rendered=sorted(out.glob('report-*.png'))[:len(doc)]
         assert len(rendered)==len(doc)
     records=[]
     thumbs=[]

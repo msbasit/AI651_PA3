@@ -26,7 +26,8 @@
   "consistent_training_configs": true,
   "finite_checkpoint_weights": true,
   "full_test_npu": true,
-  "report_pages": 11,
+  "report_pages": 14,
+  "native_latex_source": true,
   "first_page_identity_and_public_link": true,
-  "sha256_report": "c7283949eb96a3b048855a2cc3daef9b3d1f1b9e8ae0fd0a8fbc8dfc4a104b25"
+  "sha256_report": "6c2f7fd6c9d5a38cdf6acbde435c2d7c45fc5b4b31f486c66f9b7e1c1535c5a9"
 }

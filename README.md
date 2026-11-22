@@ -14,6 +14,7 @@ Public repository: [msbasit/AI651_PA3](https://github.com/msbasit/AI651_PA3).
 - `notebooks/03_forecasting_experiments.ipynb`: temporal-only, fixed, adaptive and hybrid models, their real training outputs and analysis.
 - `notebooks/04_npu_inference.ipynb`: full-test explicit Intel AI Boost NPU inference.
 - `src/`: runnable, reusable source code underlying the notebooks and report.
+- `report/report.tex`: editable native LaTeX report source, with numbered equations and conventional academic typography.
 - `results/`: per-epoch histories, original-unit metrics, exact configuration, download hashes, graph diagnostics, prediction arrays and logs.
 - `figures/`: all report figures.
 - `checkpoints/{temporal,fixed,adaptive,hybrid}.pt`: validation-selected FP32 model weights.
@@ -33,6 +34,8 @@ Errors are vehicles per 15-minute interval. Every model is scored on the same 26
 Training times are synchronized XPU wall times including epoch validation. Hybrid epoch 13 took 67.2 seconds versus about 21 seconds for nearby epochs; the outlier is retained in its total. Full precision results are in `results/metrics.json`; deployment results are in `results/npu_metrics.json`.
 
 ## Environment
+
+Report generation requires a LaTeX distribution (MiKTeX or TeX Live) providing `pdflatex`, Latin Modern, AMS math, booktabs, tabularx, graphicx, float, placeins, microtype, caption, hyperref and xurl. `python src/build_report.py` generates `report/report.tex` from measured records and compiles it twice. To edit TeX directly, run `pdflatex -output-directory=tmp/latex report/report.tex` twice from the project root and copy the resulting PDF to the deliverable filename; the Python builder will regenerate the TeX source when rerun.
 
 Use **Python 3.12 with Intel XPU-enabled PyTorch**. The measured machine uses a Core Ultra 7 255H, Intel Arc 140T integrated GPU and Intel AI Boost NPU. Exact versions and driver details are saved in `results/environment.json` and `results/hardware.json`.
 

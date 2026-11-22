@@ -1,0 +1,6 @@
+{
+  "engine": "pdfLaTeX",
+  "passes": 2,
+  "source": "report/report.tex",
+  "warnings": []
+}

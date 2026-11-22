@@ -39,11 +39,16 @@ def main():
     assert '25280025' in first and 'Muhammad Sami Ul Basit' in first
     assert any(x.get('uri')=='https://github.com/msbasit/AI651_PA3' for x in doc[0].get_links())
     text='\n'.join(p.get_text() for p in doc)
-    for fragment in ['Q1','Q2','Q3','Q4','Q5','Q6','Q7','AI-use disclosure']:
+    for fragment in ['What does a sum remember','Which way is the slowdown moving',
+                     'Dataset preparation','Spatio-temporal forecasting','Fixed, adaptive',
+                     'Experimental analysis','Reproducibility','AI-use disclosure']:
         assert fragment in text,fragment
+    tex=(ROOT/'report'/'report.tex').read_text(encoding='utf-8')
+    assert all('sec:q'+str(i) in tex for i in range(1,8))
+    assert r'\begin{equation}' in tex and r'\begin{align}' in tex
     save_json('submission_checks.json',dict(notebooks=notebooks,common_test_metric_count=counts[0],
         all_models_have_checkpoints=True,consistent_training_configs=True,finite_checkpoint_weights=True,
-        full_test_npu=True,report_pages=len(doc),first_page_identity_and_public_link=True,
+        full_test_npu=True,report_pages=len(doc),native_latex_source=True,first_page_identity_and_public_link=True,
         sha256_report=hashlib.file_digest(pdf.open('rb'),'sha256').hexdigest()))
     print('PASS: all four notebooks executed without errors, checkpoints and common full-test metrics present, NPU execution confirmed, report identity/link verified.')
 
