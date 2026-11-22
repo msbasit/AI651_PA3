@@ -67,7 +67,7 @@ def main():
     sets={name:Windows(data[name],data[name+'_mask'],mean,std,device) for name in ['train','val','test']}
     fixed=normalize_fixed(torch.tensor(np.load(ROOT/'data'/'sd_adj.npy'),device=device))
     config=dict(revision=REVISION,seed=SEED,hidden=16,embedding=10,embedding_init_std=1.,alpha=.5,batch=args.batch,max_epochs=args.epochs,
-                patience=args.patience,optimizer='Adam',lr=.002,weight_decay=.0001,clip_norm=5.,
+                patience=args.patience,optimizer='Adam',lr=.002,weight_decay=.0001,embedding_weight_decay=0.,clip_norm=5.,
                 loss='masked original-unit MAE divided by a single training-only global scale',selection='minimum full validation MAE',
                 precision='FP32',fixed_normalization='clear supplied diagonal, add one unit self-loop, row-normalize',
                 adaptive='dense row-softmax(ReLU(E1 @ E2.T)); no top-k sparsification',
@@ -99,7 +99,12 @@ def main():
             model.load_state_dict(ckpt['state_dict'])
             print(mode,evaluate(model,sets['test'],std,args.batch),flush=True)
             continue
-        opt=torch.optim.Adam(model.parameters(),lr=.002,weight_decay=.0001)
+        # Coupled L2 on these weak-gradient logits can erase both embeddings.
+        # Regularize the forecasting network, but leave graph embeddings unpenalized.
+        groups=[dict(params=[p for n,p in model.named_parameters() if n not in ('E1','E2')],weight_decay=.0001)]
+        if mode in ['adaptive','hybrid']:
+            groups.append(dict(params=[model.E1,model.E2],weight_decay=0.))
+        opt=torch.optim.Adam(groups,lr=.002)
         # Exclude one untimed forward warmup, with no optimizer update.
         with torch.no_grad():
             model(sets['train'].batch(torch.arange(args.batch,device=device))[0])

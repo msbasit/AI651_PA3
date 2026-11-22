@@ -24,7 +24,7 @@
 
 \begin{abstract}Questions 1-2 establish what aggregation preserves and how direction can enter a graph layer. Questions 3-7 implement four lightweight forecasters using all 716 San Diego sensors, 2020 training data, January-March 2021 validation data, and April-December 2021 test data. Each prediction uses eight 15-minute observations and forecasts four further intervals.
 
-The lowest measured test MAE is from \textbf{temporal}: \textbf{65.72} vehicles per 15 minutes. None of the graph variants improves on the temporal-only test MAE under this protocol. These are single-seed, finite-budget comparisons; they do not establish a universal ranking or statistical significance.\end{abstract}
+The lowest measured test MAE is from \textbf{adaptive}: \textbf{52.72} vehicles per 15 minutes. This is a 14.63\% relative MAE reduction versus temporal-only. These are single-seed, finite-budget comparisons; they do not establish a universal ranking or statistical significance.\end{abstract}
 
 \begin{table}[H]
 \centering\small
@@ -34,19 +34,23 @@ The lowest measured test MAE is from \textbf{temporal}: \textbf{65.72} vehicles 
 \toprule
 \textbf{Model} & \textbf{Adjacency} & \textbf{MAE} & \textbf{RMSE} & \textbf{Train time (s)} \\
 \midrule
-Temporal-only & None & 65.72 & 103.88 & 277.2 \\
-STGNN & Fixed & 123.28 & 192.00 & 375.9 \\
-STGNN & Adaptive & 124.01 & 187.90 & 277.2 \\
-STGNN & Hybrid & 97.69 & 149.46 & 477.1 \\
+Temporal-only & None & 61.75 & 97.28 & 780.0 \\
+STGNN & Fixed & 58.88 & 92.48 & 930.9 \\
+STGNN & Adaptive & 52.72 & 83.58 & 970.8 \\
+STGNN & Hybrid & 55.11 & 87.19 & 609.7 \\
+Persistence & None & 87.11 & 132.88 & 0 (untrained) \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 
+{\small Persistence repeats the last observed value at each sensor for all four horizons. On the same test masks it scores MAE 87.11 and RMSE 132.88. Averaging last values in original units through the revised fixed graph with one unit self-loop instead scores MAE 170.97 and RMSE 247.55; this is an aggregation diagnostic, not a learned model. The graph models retain a separate local path.}
+
+
 {\small Errors are in vehicles per 15-minute interval. Metrics pool every valid sensor/horizon target over the same full test period. Training times include all executed epochs and epoch validation, with synchronized XPU wall time; preparation, warmup and final evaluation are excluded. Early stopping can give different realized durations under the same rule.}
 
 
-{\small Timing note: hybrid epoch 13 took 67.2s versus a median 21.4s. This wall-time outlier is retained in the reported total; training times are not isolated kernel-throughput measurements.}
+{\small Timing precision: every displayed total is independently rounded from its own synchronized run. Unrounded seconds, actual epoch counts and individual epoch durations are retained in metrics.json and the per-model history files; equality after rounding does not imply shared timing measurements.}
 
 
 Intel(R) Core(TM) Ultra 7 255H; 46.9 GiB system RAM. Training and primary inference: Intel(R) Arc(TM) 140T GPU (23GB) using PyTorch 2.14.1+xpu. Additional full-test inference: Intel AI Boost through OpenVINO 2026.4.1. The GPU memory label describes shared integrated-GPU memory, not dedicated VRAM.
@@ -128,7 +132,7 @@ The unique minimizer is \(a=0\), \(b=\tfrac12\), with \(\mathcal L_{\min}=\tfrac
 \caption{Both sequences start from \(\exp(-(i-20)^2/8)\), use the same [0,1] color scale and show t=0,...,20. The fitted symmetric rule is applied recursively without teacher forcing.}
 \end{figure}
 
-The true bump moves one sensor against traffic at every step and preserves its height and shape. The equal-neighbor layer spreads mass both ways, lowering and widening the peak rather than translating it; periodic wrapping is visible near the boundary.
+The true bump moves one sensor against traffic at every step and preserves its height and shape; periodic wrapping is visible in the true-motion panel near the ring boundary. The equal-neighbor layer spreads mass both ways, lowering and widening the peak rather than translating it.
 
 
 \subsection{Give the layer direction labels}
@@ -137,7 +141,7 @@ Choose
 \begin{equation}a=0,\qquad w_-=0,\qquad w_+=1.\end{equation}
 Then \(\widehat x_i(t+1)=x_{i+1}(t)\), exactly the required motion for every input. A PyTorch \texttt{Conv1d} cross-correlation uses
 \begin{equation}\underbrace{[\,0,\ 0,\ 1\,]}_{\text{kernel}}\quad\text{on}\quad[x_{i-1},x_i,x_{i+1}],\end{equation}
-with circular padding of one and no bias. A mathematical convolution reverses its stored-kernel convention. Labeling ahead and behind breaks the reflection ambiguity that persists through stacks of unlabeled symmetric layers.
+with circular padding of one and no bias. A mathematical convolution reverses its stored-kernel convention. In part (a), sensors 19 and 21 are forced to receive the same prediction \(b\), so the asymmetric target \((1,0)\) cannot be fitted. Separate \(w_-\) and \(w_+\) remove this constraint. Direction labels therefore break the reflection ambiguity that persists through stacks of unlabeled symmetric layers.
 
 
 \subsection{History supplies the missing directional information}
@@ -148,6 +152,7 @@ For backward motion, \(x_{i-1}(t)=x_i(t-1)\); substitution gives
 \begin{equation}\widehat x_i(t+1)=\cancelterm{x_{i-1}(t)}+x_{i+1}(t)-\cancelterm{x_i(t-1)}=x_{i+1}(t).\end{equation}
 For forward motion, \(x_{i+1}(t)=x_i(t-1)\), so the same coefficients give
 \begin{equation}\widehat x_i(t+1)=x_{i-1}(t)+\cancelterm{x_{i+1}(t)}-\cancelterm{x_i(t-1)}=x_{i-1}(t).\end{equation}
+Since \(x_{i-1}(t)\) is exactly the forward-motion target, the same coefficients \((a,b,c)=(0,1,-1)\) still work.
 
 
 The past local value identifies the spatial term associated with where the pattern has already passed. Subtracting it leaves the opposite neighbor, even though both spatial coefficients remain equal. This exact identity assumes the stated constant-speed, shape-preserving motion; noise or changing speed need not satisfy it. Numerical checks verify both directions to floating-point precision.
@@ -229,6 +234,9 @@ A provided self-loop therefore includes the focal sensor itself; the degree hist
 \textbf{At-most-two-hop sensor IDs:} 1117748, 1113976, 1117741, 1108603, 1117835, 1117717, 1118078, 1108611, 1108613, 1114050, 1108617, 1118496, 1126411, 1114805, 1114035, 1108547, 1118707, 1118521, 1108665, 1117683, 1108417, 1117734, 1108605, 1118702, 1108609, 1117871, 1108615, 1117818, 1126426, 1114806, 1108711, 1108693, 1111514, 1108728, 1114540, 1113486, 1115356, 1115413, 1115432, 1115438, 1111551, 1115420, 1115426, 1111566, 1115444, 1116783, 1114546, 1116574, 1115528, 1115517, 1115555, 1115565, 1111552, 1116165, 1115548, 1111540, 1115572, 1121818, 1114450, 1114457, 1113279, 1111539, 1108331, 1111520, 1121821, 1114463, 1111509, 1121288, 1116112, 1113460, 1108572, 1115921, 1108391, 1115929.
 
 
+The focal sensor 1126411 is included in both literal lists because the supplied graph has a self-loop at that sensor. The non-self one-hop and two-hop lists are also saved separately in preparation.json.
+
+
 Nearby sensors can reveal upstream congestion, downstream bottlenecks and common demand changes before the local series fully reflects them. One layer combines immediate row neighbors. Two layers can propagate information along paths of length two, while repeated self-loops also retain shorter paths. More layers can blend distinct local states (oversmoothing), compress many distant signals (oversquashing), increase noise and overfit; greater depth is therefore not automatically better.
 
 
@@ -243,8 +251,8 @@ Y_s&=[x_{s+8},x_{s+9},x_{s+10},x_{s+11}].
 Thus \(X_s\in\mathbb R^{8\times716\times1}\), \(Y_s\in\mathbb R^{4\times716\times1}\). Batched tensors add a leading dimension \(B\). No input or target crosses a split boundary; validation and test history also begins within its own split.
 
 
-A single global mean \textbf{584.84760} and standard deviation \textbf{487.68296} are computed from the filled 2020 input series only. All models receive (x-mean)/std. Predictions are inverted before MAE and RMSE; using one global scale keeps every valid sensor-count error equally weighted in the loss.
-\begin{equation}\widetilde x=\frac{x-\mu_{\mathrm{train}}}{\sigma_{\mathrm{train}}},\qquad \widehat y=\sigma_{\mathrm{train}}\widehat{\widetilde y}+\mu_{\mathrm{train}}.\end{equation}
+Per-sensor training statistics are computed from the filled 2020 series only. Each sensor is standardized with its own mean and standard deviation. Across sensors, means range from 0.00 to 1334.65, and used standard deviations range from 1.00 to 822.44. For 19 constant training sensors, a unit scale avoids division by zero. Every forecast is inverted with that sensor's statistics before scoring.
+\begin{equation}\widetilde x_{t,i}=\frac{x_{t,i}-\mu_i}{\sigma_i},\qquad \widehat y_{s,h,i}=\sigma_i\widehat{\widetilde y}_{s,h,i}+\mu_i.\end{equation}
 
 
 \subsection{Architecture and controlled baseline}
@@ -259,23 +267,25 @@ A single global mean \textbf{584.84760} and standard deviation \textbf{487.68296
 \midrule
 Temporal encoder & Two temporal convolutions, \(1\to16\) then \(16\to16\) channels, each with a \(1\times3\) kernel, \((0,1)\) padding and ReLU. Node positions are not mixed. \\
 Temporal representation & Flatten each sensor\textquotesingle s \(16\times8\) feature map; apply \(\operatorname{Linear}(128,16)\), giving \(Z\in\mathbb R^{B\times716\times16}\). \\
-Spatial layer & \(H=\operatorname{ReLU}(\widehat A ZW_g)\), with \(W_g\in\mathbb R^{16\times16}\) and no bias. One node-mixing layer. \\
+Local and graph layer & \(H=\operatorname{ReLU}(ZW_{\mathrm{local}}+\widehat A ZW_g)\). Both \(16\times16\) projections have no bias. The local representation survives independently of graph averaging. \\
 Forecast head & \(\operatorname{Linear}(16,4)\) per sensor, yielding \(\widehat Y\in\mathbb R^{B\times4\times716\times1}\). All horizons are predicted directly. \\
-Temporal-only & Same encoder, channel projection Wg, nonlinearity and head, with identity node mixing. No neighbor exchange. \\
+Temporal-only & Same temporal encoder, local projection and head, with \(H=\operatorname{ReLU}(ZW_{\mathrm{local}})\). No graph term. \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 
-Temporal/fixed: \textbf{3,236} parameters. Adaptive/hybrid: \textbf{14,692}, including two 716\ensuremath{\times}8 embeddings. Shared encoder, projection and head initial weights are identical across all experiments.
+Trainable parameters: temporal-only \textbf{3,236}, fixed \textbf{3,492}, and adaptive/hybrid \textbf{17,812}. The graph variants add a 16\ensuremath{\times}16 graph projection; adaptive/hybrid also add two 716\ensuremath{\times}10 embeddings. Shared encoder, local projection and head initial weights are identical across experiments.
 
 
 \subsection{Training and model selection}
 
-All runs use seed 25280025, FP32, Adam (lr 0.002, weight decay 0.0001), batch 64, norm clipping at 5, maximum 20 epochs and patience 5. Every training window is used, with identical epoch-seeded shuffles. Minimum full-validation MAE selects the checkpoint. Test data never select learning rates or architecture. Fixed seeds do not guarantee bitwise XPU determinism.
+All runs use seed 25280025, FP32, Adam (lr 0.002, weight decay 0.0001 on forecasting weights and zero on graph embeddings), batch 64, norm clipping at 5, maximum 40 epochs and patience 5. Every training window is used, with identical epoch-seeded shuffles. Minimum full-validation MAE selects the checkpoint. The revision protocol was set from the independent review; test results are not used for further hyperparameter selection. Fixed seeds do not guarantee bitwise XPU determinism.
 
 
-Loss is masked MAE in standardized units. Original-unit metrics pool errors over valid targets, excluding filled labels and retaining real zeros. Overlapping-window horizon forecasts count separately, with the same mask for all models. Every final metric uses the validation-selected checkpoint.
+The loss is masked MAE after per-sensor inverse scaling, divided by one fixed training-only global flow scale for numerical conditioning. This preserves equal original-unit weighting across sensors rather than giving low-variance sensors greater loss weight. Filled labels are excluded and real zeros retained. Overlapping-window horizon forecasts count separately, with identical masks for all models. Final metrics use the validation-selected checkpoint.
+\begin{equation}\mathcal L_{\mathcal B}=\frac{1}{s_{\mathrm{train}}C_{\mathcal B}}\sum_{(s,h,i)\in\mathcal B}m_{s,h,i}\,\sigma_i\left|\widehat{\widetilde y}_{s,h,i}-\widetilde y_{s,h,i}\right|.\end{equation}
+Here \(C_{\mathcal B}\) counts valid batch targets, and \(s_{\mathrm{train}}\) is one scalar standard deviation of the filled training counts, shared by every model.
 
 
 \begin{figure}[H]\centering
@@ -288,19 +298,19 @@ Loss is masked MAE in standardized units. Original-unit metrics pool errors over
 
 The fixed graph uses directed row normalization:
 \begin{equation}\label{eq:fixed}
-\widehat A_{\mathrm{fixed}}=D^{-1}(A+I),\qquad D_{ii}=\sum_j(A+I)_{ij}.
+\widehat A_{\mathrm{fixed}}=D^{-1}(A_{\mathrm{off}}+I),\qquad D_{ii}=\sum_j(A_{\mathrm{off}}+I)_{ij}.
 \end{equation}
-Each receiving row is a nonnegative weighted average. This avoids applying a symmetric-graph formula to an asymmetric graph. The provided diagonal is retained, and \(I\) is added literally: an existing unit self-loop becomes weight two before normalization. The fixed matrix is a nontrainable buffer throughout optimization.
+Here \(A_{\mathrm{off}}=A-\operatorname{diag}(\operatorname{diag}A)\). Clearing the supplied diagonal before adding \(I\) gives exactly one unit self-loop. Each receiving row is a nonnegative weighted average; directed normalization avoids assuming symmetry. The raw graph remains unchanged for Section~\ref{sec:q3}; the normalized model graph is a nontrainable buffer throughout optimization.
 
 
 \subsection{Learnable graph}
 
-Introduce two trainable matrices \(E_1,E_2\in\mathbb R^{716\times8}\), independently initialized from \(\mathcal N(0,0.1^2)\). Define
+Introduce two trainable matrices \(E_1,E_2\in\mathbb R^{716\times10}\), independently initialized from \(\mathcal N(0,1)\). Define
 \begin{align}
 L&=\operatorname{ReLU}(E_1E_2^{\mathsf T}),\\
 (\widehat A_{\mathrm{adaptive}})_{ij}&=\frac{\exp L_{ij}}{\sum_{k=1}^{716}\exp L_{ik}}.
 \end{align}
-Gradients flow from the forecasting loss through the row softmax, positive ReLU logits and embedding product. Negative logits have zero ReLU gradient on that step. All 716 neighbors are retained: training uses neither top-\(k\) selection nor sparsification.
+The standard-normal initialization produces nontrivial logits rather than an almost uniform initial graph. Gradients flow through row softmax, positive ReLU logits and the embedding product; negative logits have zero ReLU gradient on that step. All 716 neighbors are retained, with no top-\(k\) training sparsification.
 
 
 \subsection{Hybrid graph}
@@ -314,7 +324,7 @@ Both terms are row stochastic, so their convex combination remains normalized. T
 
 \begin{figure}[H]\centering
 \includegraphics[width=\linewidth,height=.34\textheight,keepaspectratio]{q5_adjacencies.png}
-\caption{Final node-mixing matrices for the validation-selected checkpoints. Each panel has its own colorbar so weak adaptive weights remain visible; visual brightness is not directly comparable across panels.}
+\caption{Final node-mixing matrices for the validation-selected checkpoints. All panels share a logarithmic weight scale from 0.00001 to 1. Zero weights are gray; smaller positive weights use the lowest display color. This is display clipping only: no graph weights are pruned.}
 \end{figure}
 
 \begin{table}[H]
@@ -325,20 +335,26 @@ Both terms are row stochastic, so their convex combination remains normalized. T
 \toprule
 \textbf{Mode} & \textbf{Val MAE} & \textbf{Val RMSE} & \textbf{Test MAE} & \textbf{Test RMSE} & \textbf{Run / best} \\
 \midrule
-Temporal & 57.73 & 93.17 & 65.72 & 103.88 & 20 / 19 \\
-Fixed & 109.44 & 174.71 & 123.28 & 192.00 & 20 / 18 \\
-Adaptive & 107.45 & 170.96 & 124.01 & 187.90 & 13 / 8 \\
-Hybrid & 85.89 & 138.35 & 97.69 & 149.46 & 20 / 20 \\
+Temporal & 53.21 & 85.84 & 61.75 & 97.28 & 39 / 34 \\
+Fixed & 49.85 & 80.10 & 58.88 & 92.48 & 40 / 38 \\
+Adaptive & 43.99 & 71.18 & 52.72 & 83.58 & 39 / 34 \\
+Hybrid & 47.12 & 76.03 & 55.11 & 87.19 & 24 / 19 \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 
-Relative test-MAE reductions versus temporal-only: \textbf{fixed -87.59\%}, \textbf{adaptive -88.70\%}, \textbf{hybrid -48.64\%}. A negative reduction means higher error. Useful neighbor information must outweigh mixing losses and graph-estimation error. Keeping the local temporal signal only can win when this single graph layer mixes unlike sensor states too strongly.
+{\small Budget limitation: fixed selected checkpoints within two epochs of the 40-epoch cap. The increased budget improved model selection, but full convergence is not established; further training may still help. All variants used the same maximum budget and stopping rule.}
+
+
+Graph-optimizer check: an intermediate rerun with coupled weight decay on all parameters drove the weak-gradient node embeddings nearly to zero and made their graph uniform. The final optimizer applies weight decay only to the forecasting network, with zero decay on E1 and E2. Adaptive and hybrid were rerun from the same seed after this structural diagnostic; temporal and fixed have no such embeddings and are unaffected. This correction was motivated by the collapsed graph, not by test-error tuning.
+
+
+Relative test-MAE reductions versus temporal-only: \textbf{fixed +4.64\%}, \textbf{adaptive +14.63\%}, \textbf{hybrid +10.75\%}. A negative reduction means higher error. The local route preserves own-sensor information in every model, so graph variants add neighbor information rather than replacing the local representation. This remains a single-seed comparison with additional parameters in the graph variants.
 
 
 \FloatBarrier\section{Experimental analysis and interpretation}\label{sec:q6}\subsection{Forecasting comparison}
-The final comparison table on page 1 reports original-unit MAE, RMSE and synchronized training time. Figure 6 compares actual measurements with all four saved models for the same three predetermined sensors and dates. These are 15-minute-ahead forecasts; the table below also reports longer horizons over the entire test period.
+Table 1 reports original-unit MAE, RMSE and synchronized training time, including persistence as an untrained sanity check. Figure 6 compares actual measurements with all four saved models for the same three predetermined sensors and dates. These are 15-minute-ahead forecasts; the table below also reports longer horizons over the entire test period.
 
 
 \begin{figure}[H]\centering
@@ -354,10 +370,10 @@ The final comparison table on page 1 reports original-unit MAE, RMSE and synchro
 \toprule
 \textbf{Model} & \textbf{15-min MAE} & \textbf{30-min MAE} & \textbf{45-min MAE} & \textbf{60-min MAE} \\
 \midrule
-Temporal & 45.53 & 59.32 & 72.25 & 85.77 \\
-Fixed & 113.62 & 119.54 & 126.26 & 133.72 \\
-Adaptive & 120.69 & 122.28 & 124.94 & 128.13 \\
-Hybrid & 89.78 & 94.50 & 100.06 & 106.41 \\
+Temporal & 43.89 & 56.50 & 67.65 & 78.96 \\
+Fixed & 42.53 & 54.05 & 64.15 & 74.80 \\
+Adaptive & 39.71 & 49.17 & 57.23 & 64.76 \\
+Hybrid & 41.01 & 51.05 & 60.05 & 68.33 \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -386,8 +402,8 @@ For each node, select its ten strongest learned non-self edges, giving 7,160 ord
 \toprule
 \textbf{Graph / reference} & \textbf{Road overlap} & \textbf{Mean km} & \textbf{Median km} & \textbf{Within 5 km} \\
 \midrule
-Adaptive learned component & 4.40\% & 24.60 & 21.61 & 6.52\% \\
-Hybrid learned component & 5.36\% & 22.22 & 19.15 & 9.57\% \\
+Adaptive learned component & 4.75\% & 26.38 & 21.22 & 8.14\% \\
+Hybrid learned component & 2.29\% & 29.80 & 25.40 & 4.27\% \\
 Uniform non-self pair reference & 3.38\% & 27.09 & - & 5.90\% \\
 \bottomrule
 \end{tabularx}
@@ -397,10 +413,10 @@ Uniform non-self pair reference & 3.38\% & 27.09 & - & 5.90\% \\
 The hybrid row in this table analyzes its learned component alone, rather than the mixed matrix that mechanically contains fixed-road edges. The uniform-pair reference describes all 716\ensuremath{\times}715 off-diagonal possibilities; it is not a separately fitted random graph. Selection ties are resolved deterministically by NumPy index sorting.
 
 
-The adaptive top-ten links overlap the road graph at 4.40\%, versus its density of 3.38\%. Their mean geographic separation is 24.60 km, versus 27.09 km across all non-self pairs. They are more local on average than uniform pairs, but much less local than road edges (mean 2.28 km). The map shows many strongest links converging on a common eastern anchor rather than tracing individual road segments.
+The retrained adaptive top-ten links overlap the road graph at 4.75\%, versus its density of 3.38\%. Their mean geographic separation is 26.38 km, versus 27.09 km across all non-self pairs and 2.28 km for road edges. Thus they are more local on average than uniform pairs. Geographic proximity and exact physical connectivity remain different properties.
 
 
-Mean adaptive row entropy is 6.313 nats (uniform would be 6.574); mean self-weight is 0.00187. Ranking small differences in a diffuse row can overstate link importance, so top-ten membership alone should not be interpreted as strong evidence of physical connectivity.
+Adaptive row entropy starts at 3.314 nats and is 3.218 at the selected checkpoint (uniform: 6.574); mean learned self-weight is 0.00500. The standard-normal initialization avoids the previous almost-flat starting graph. Entropy describes concentration, not physical correctness: top-ten membership still needs independent interpretation.
 
 
 \begin{figure}[H]\centering
@@ -415,7 +431,7 @@ Connections absent from the road graph are possible because every pair has a tra
 Lower forecasting error does not establish actual road connectivity: many graphs can generate similar predictions, node embeddings are not uniquely identifiable, and correlated demand can connect distant roads. A fixed graph supplies a useful structural prior and may generalize with fewer parameters. An adaptive graph can discover missing associations but may overfit or average away distinctive sensor behavior. The hybrid can balance those effects; it is not guaranteed to dominate either term.
 
 
-Global scaling can mix sensors with different lane capacities and flow levels; the single graph layer has no separate local residual path. Training-only per-sensor scaling and a local skip connection are reasonable follow-ups, not explanations established by this experiment. A static graph also misses rush-hour changes, incidents and propagation delays. Future work should test time-dependent or delayed messages, additional seeds, persistence and stronger temporal baselines. The required 2020-2021 split includes substantial demand shift; results are not a shuffled-split benchmark.
+The revised architecture retains a local path and uses per-sensor training-only scaling; it therefore avoids forcing a sensor to inherit its neighbors' raw volume level. The independent review motivated several changes together (architecture, scaling, initialization and training budget), so before/after gains cannot be attributed to one change in isolation. A static graph still misses rush-hour changes, incidents and propagation delays. Additional seeds, controlled ablations and time-dependent or delayed graph messages are useful next steps. The required 2020-2021 split includes substantial demand shift.
 
 
 \section{Reproducibility and hardware execution}\label{sec:q7}\subsection{GPU training and NPU deployment}
@@ -430,10 +446,10 @@ All four networks are trained on Intel Arc through native PyTorch XPU kernels. T
 \toprule
 \textbf{Mode} & \textbf{NPU MAE} & \textbf{NPU RMSE} & \textbf{Full-test s} & \textbf{Median batch (ms)} \\
 \midrule
-Temporal & 65.72 & 103.88 & 14.5 & 0.455 \\
-Fixed & 123.29 & 192.01 & 17.2 & 0.493 \\
-Adaptive & 124.00 & 187.88 & 17.6 & 0.570 \\
-Hybrid & 97.68 & 149.43 & 15.0 & 0.462 \\
+Temporal & 61.75 & 97.28 & 26.4 & 0.823 \\
+Fixed & 58.88 & 92.48 & 24.0 & 0.729 \\
+Adaptive & 52.71 & 83.57 & 24.8 & 0.790 \\
+Hybrid & 55.11 & 87.20 & 25.1 & 0.770 \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -450,10 +466,10 @@ Drivers: Intel(R) AI Boost: 32.0.100.5600; Intel(R) Arc(TM) 140T GPU (23GB): 32.
 Use an XPU-enabled PyTorch environment. Install requirements.txt without replacing the XPU wheel, then register its Jupyter kernel as ai651-xpu. Run src/download\_data.py, execute notebooks 01 through 04 in order, and run src/build\_report.py. The README includes exact commands, evaluation-only instructions and the pinned dataset provenance. Raw CA files and the large prepared cache are excluded from Git; download\_data.py recreates them.
 
 
-Checks verify sensor identity/order, complete date grids, exact split sizes, first/last window alignment, target masks, training-only normalization, row-stochastic matrices, nonzero adaptive gradients and identical shared initial weights. Executed notebooks and saved checkpoints make the measured outputs inspectable. No LMS upload was performed.
+Checks verify sensor identity/order, complete date grids, split-local windows, target masks, training-only per-sensor statistics and inverse scaling, one unit self-loop, row-stochastic graphs, nonzero embedding gradients, the independent local path and identical shared initial weights. Executed notebooks, persistence measurements and saved checkpoints make the outputs inspectable.
 
 
-\FloatBarrier\appendix\section{AI-use disclosure}
+\FloatBarrier\appendix\section{AI Acknowledgement}
 \textbf{Tool:} OpenAI Codex. Generative AI was used extensively to produce the mathematical explanations, source implementation, data pipeline, experiments, plots, notebook structure and this report. This submission should not be represented as unaided student work.
 
 
@@ -466,16 +482,22 @@ You are an excellent standford Deep learning instructor who teaches Deel Learnin
 \textbf{AI output:} the complete source in src/, four executed notebooks, measured experiment artifacts and checkpoints, seven figures, README reproduction instructions, and this PDF. The generated code was executed on the stated hardware; tabulated results come from saved measurements rather than invented examples.
 
 
-\textbf{Edits and verification:} during agent-led development, Intel XPU execution replaced the default CPU-only interpreter; dataset downloads used a pinned public mirror after Kaggle 404 responses; metrics use FP32 device reductions with FP64 CPU accumulation because Arc lacks native FP64; NPU batch size was reduced from 16 to one after a measured compiler failure. Automated checks and PDF rendering were used to verify the final artifacts. These are AI-agent edits, not claimed human corrections.
+\textbf{Initial implementation and verification:} Codex selected the installed Intel XPU environment, used a pinned dataset mirror after Kaggle API failures, accumulated metric totals in CPU FP64 after XPU FP32 reductions, and reduced NPU batch size to one after a compiler failure. Automated checks and PDF rendering support the execution record. The subsequent model corrections and report revisions were directed by the independent human review described below.
 
 
 \textbf{Style-revision prompt:} "I dont really like the style of the report. I like conventional report style with Latex based equations and expressions"
 
 
-\textbf{Revision output and edits:} on 22 November 2026, the report was retypeset with native LaTeX equations, serif typography, numbered sections, conventional tables, figure captions and references. The editable TeX source is included. Experimental results and trained models were retained; no retraining was performed for this style revision.
+\textbf{Earlier style revision:} on 22 November 2026, the report was retypeset with native LaTeX equations, serif typography, numbered sections, conventional tables, figure captions and references. The editable TeX source is included. That formatting-only revision retained the then-current results; the subsequent review-driven reruns are described below.
 
 
-\textbf{Human edits:} the user supplied the style preference above; no direct human edits to the solutions or code are recorded. The student should independently review the derivations, code and results and be able to explain them in the course viva. Additional course-outline AI rules were not supplied.
+\textbf{Human contribution and independent review:} I independently reviewed the earlier solution against the assignment. I checked the Q1-Q2 derivations and data/split conventions, identified weaknesses in the model design, initialization and training budget, and supplied specific corrections and report revisions. I directed these changes and reviewed the implementation choices. Codex assisted with implementation, retraining, automated checks and artifact regeneration. This work therefore includes substantive human review and intervention alongside AI assistance.
+
+
+\textbf{Correction request (summary):} following my independent review, I asked Codex to review and fix the documented problems, and to discuss any points of disagreement with me first. The private review notes are excluded from the report, public repository and submission archive.
+
+
+\textbf{Review-driven edits:} added a local feature path, standard-normal 10-dimensional node embeddings, per-sensor training-only normalization and inverse scaling, a single-self-loop convention, a 40-epoch maximum with patience 5, persistence checks, and corrected wording. A final graph diagnostic identified embedding collapse under coupled weight decay; excluding the embeddings from decay and rerunning adaptive/hybrid corrected that problem. All four models were retrained and re-evaluated on GPU; NPU inference, plots, graph diagnostics, conclusions, source and submission artifacts were regenerated. These are AI-agent implementation edits following my independent review; the new numerical outputs are supported by saved execution records.
 
 
 LargeST is released under CC BY-NC 4.0 \cite{largest-repo}. Raw dataset files are not redistributed in this repository. The small derived SD adjacency and sensor metadata retain their source attribution and noncommercial data license. Source code is provided for academic reproducibility.

@@ -31,6 +31,8 @@ def main():
         m=Forecaster(mode,fixed).eval()
         if not args.smoke:
             checkpoint=torch.load(ROOT/'checkpoints'/f'{mode}.pt',map_location='cpu',weights_only=True)
+            assert np.array_equal(np.asarray(checkpoint['config']['mean'],np.float32),data['mean'])
+            assert np.array_equal(np.asarray(checkpoint['config']['std'],np.float32),data['std'])
             m.load_state_dict(checkpoint['state_dict'])
         graph=m.adjacency()
         if graph is not None:

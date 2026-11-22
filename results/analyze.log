@@ -6,23 +6,35 @@
     "road_edges_mean_distance_km": 2.2795987002687443
   },
   "adaptive": {
-    "top10_road_overlap": 0.04399441340782123,
-    "top10_mean_distance_km": 24.59739602393445,
-    "top10_median_distance_km": 21.60518245754068,
-    "top10_under_5km_fraction": 0.06522346368715083,
+    "top10_road_overlap": 0.04748603351955307,
+    "top10_mean_distance_km": 26.37774561536851,
+    "top10_median_distance_km": 21.222709829596305,
+    "top10_under_5km_fraction": 0.0814245810055866,
     "top10_edges": 7160,
-    "mean_row_entropy": 6.313493728637695,
+    "mean_row_entropy": 3.2182016372680664,
     "uniform_entropy": 6.573680166960646,
-    "mean_self_weight": 0.0018671287689357996
+    "mean_self_weight": 0.0049996282905340195,
+    "embedding_std": [
+      1.2070969343185425,
+      1.1015397310256958
+    ],
+    "max_weight": 0.6174082159996033,
+    "max_abs_departure_from_uniform": 0.6160115599632263
   },
   "hybrid": {
-    "top10_road_overlap": 0.053631284916201116,
-    "top10_mean_distance_km": 22.223077779636043,
-    "top10_median_distance_km": 19.15365294937045,
-    "top10_under_5km_fraction": 0.09567039106145252,
+    "top10_road_overlap": 0.022905027932960894,
+    "top10_mean_distance_km": 29.798612619216797,
+    "top10_median_distance_km": 25.39515776272253,
+    "top10_under_5km_fraction": 0.04273743016759776,
     "top10_edges": 7160,
-    "mean_row_entropy": 4.208889007568359,
+    "mean_row_entropy": 2.0947558879852295,
     "uniform_entropy": 6.573680166960646,
-    "mean_self_weight": 0.0007682738360017538
+    "mean_self_weight": 0.002027248963713646,
+    "embedding_std": [
+      1.2943196296691895,
+      1.017956256866455
+    ],
+    "max_weight": 0.957770049571991,
+    "max_abs_departure_from_uniform": 0.956373393535614
   }
 }

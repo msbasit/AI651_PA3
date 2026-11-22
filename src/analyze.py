@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 from common import ROOT,load_data,save_json,figure
 from models import Forecaster,normalize_fixed
 
@@ -56,6 +57,8 @@ def main():
     for mode in colors:
         model=Forecaster(mode,fixed).to('xpu').eval()
         ckpt=torch.load(ROOT/'checkpoints'/f'{mode}.pt',map_location='xpu',weights_only=True)
+        assert np.array_equal(np.asarray(ckpt['config']['mean'],np.float32),mu)
+        assert np.array_equal(np.asarray(ckpt['config']['std'],np.float32),std)
         model.load_state_dict(ckpt['state_dict'])
         predictions[mode]=torch.cat([model(x[j:j+32])[:,0,:,0]*std_tensor+mean_tensor for j in range(0,len(x),32)]).cpu().numpy()
         b=x[:16]
@@ -76,6 +79,9 @@ def main():
             graph_results[mode]['mean_row_entropy']=float(entropy.mean())
             graph_results[mode]['uniform_entropy']=float(np.log(716))
             graph_results[mode]['mean_self_weight']=float(np.diag(a).mean())
+            graph_results[mode]['embedding_std']=[float(model.E1.std().cpu()),float(model.E2.std().cpu())]
+            graph_results[mode]['max_weight']=float(a.max())
+            graph_results[mode]['max_abs_departure_from_uniform']=float(np.abs(a-1/len(a)).max())
     save_json('graph_analysis.json',graph_results)
     save_json('gpu_latency.json',latency)
     np.savez_compressed(ROOT/'results'/'plot_predictions.npz',dates=target_dates.to_numpy().astype('datetime64[ns]').astype(np.int64),
@@ -91,7 +97,9 @@ def main():
     figure('q6_predictions.png')
     fig,axes=plt.subplots(1,3,figsize=(12,3.6),layout='constrained')
     for ax,(mode,a) in zip(axes,[('Fixed (row normalized)',fixed.cpu().numpy()),('Adaptive',learned['adaptive']),('Hybrid',np.load(ROOT/'results'/'hybrid_adj.npy'))]):
-        im=ax.imshow(a,cmap='viridis',aspect='auto'); fig.colorbar(im,ax=ax,fraction=.046)
+        cmap=plt.get_cmap('viridis').copy();cmap.set_bad('#eeeeee')
+        im=ax.imshow(np.ma.masked_less_equal(a,0),cmap=cmap,norm=LogNorm(vmin=1e-5,vmax=1),aspect='auto')
+        fig.colorbar(im,ax=ax,fraction=.046,ticks=[1e-5,1e-3,1e-1,1])
         ax.set(title=mode,xlabel='Source node j',ylabel='Receiving node i')
     figure('q5_adjacencies.png')
     fig,axes=plt.subplots(1,2,figsize=(10,4),layout='constrained')

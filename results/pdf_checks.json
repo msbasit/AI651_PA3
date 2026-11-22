@@ -4,7 +4,7 @@
     {
       "page": 1,
       "first_line": "             Traffic Forecasting on Graphs",
-      "characters": 2587,
+      "characters": 3148,
       "outside_bounds": []
     },
     {
@@ -16,73 +16,73 @@
     {
       "page": 3,
       "first_line": "           Table 2: Information retained by one-hot sum, mean and max aggregation.",
-      "characters": 2149,
+      "characters": 2179,
       "outside_bounds": []
     },
     {
       "page": 4,
       "first_line": "2.2  Give the layer direction labels",
-      "characters": 3198,
+      "characters": 2879,
       "outside_bounds": []
     },
     {
       "page": 5,
-      "first_line": "The resulting unit is vehicles per 15-minute interval. This follows the assignment\u2019s count-volume",
-      "characters": 2126,
+      "first_line": "   All 8,600 HDF column IDs are checked against the complete metadata order. The 716 District-",
+      "characters": 2234,
       "outside_bounds": []
     },
     {
       "page": 6,
-      "first_line": "thresholded Gaussian of shortest driving distance [4]:",
-      "characters": 2510,
+      "first_line": "3.2  Road graph and neighborhoods",
+      "characters": 2348,
       "outside_bounds": []
     },
     {
       "page": 7,
-      "first_line": "4  Spatio-temporal forecasting",
-      "characters": 2808,
+      "first_line": "1115572, 1121818, 1114450, 1114457, 1113279, 1111539, 1108331, 1111520, 1121821, 1114463,",
+      "characters": 3255,
       "outside_bounds": []
     },
     {
       "page": 8,
-      "first_line": "Figure 4: Validation learning curves and test MAE at 15,30,45,60 minutes. The latter uses each model\u2019s",
-      "characters": 1929,
+      "first_line": "4.3  Training and model selection",
+      "characters": 2171,
       "outside_bounds": []
     },
     {
       "page": 9,
-      "first_line": "Figure 5: Final node-mixing matrices for the validation-selected checkpoints. Each panel has its own",
-      "characters": 1542,
+      "first_line": "5.2  Learnable graph",
+      "characters": 2506,
       "outside_bounds": []
     },
     {
       "page": 10,
-      "first_line": "Figure 6: Predicted and observed volume at sensors chosen by graph order (0,358,715), using input",
-      "characters": 1818,
+      "first_line": "final optimizer applies weight decay only to the forecasting network, with zero decay on E1 and",
+      "characters": 1402,
       "outside_bounds": []
     },
     {
       "page": 11,
-      "first_line": "6.2  Learned graph structure",
-      "characters": 2188,
+      "first_line": "                        Table 6: Test MAE by forecasting horizon.",
+      "characters": 3415,
       "outside_bounds": []
     },
     {
       "page": 12,
-      "first_line": "patterns. They can also reflect confounding, noise or overfitting. Better held-out forecasts would",
-      "characters": 3222,
+      "first_line": "Figure 7: Strongest non-self adaptive link for each of 60 evenly spaced node indices, plotted at actual",
+      "characters": 2196,
       "outside_bounds": []
     },
     {
       "page": 13,
-      "first_line": "7.2  Reproduction",
-      "characters": 3610,
+      "first_line": "frozen only when exporting for inference.",
+      "characters": 3367,
       "outside_bounds": []
     },
     {
       "page": 14,
-      "first_line": "References",
-      "characters": 938,
+      "first_line": "The generated code was executed on the stated hardware; tabulated results come from saved",
+      "characters": 3899,
       "outside_bounds": []
     }
   ],

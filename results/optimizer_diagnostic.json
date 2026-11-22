@@ -1,0 +1,29 @@
+{
+  "stage": "Intermediate graph diagnostic before removing embedding weight decay",
+  "reason": "Near-zero embeddings yield uniform adjacency. Optimizer grouping was corrected based on this structural check. Temporal/fixed do not have node embeddings and their updates are unchanged.",
+  "intermediate_models": {
+    "adaptive": {
+      "coupled_embedding_weight_decay": 0.0001,
+      "selected_epoch": 39,
+      "embedding_std": [
+        6.77583859439622e-41,
+        7.37657524605227e-41
+      ],
+      "mean_row_entropy": 6.573679447174072,
+      "uniform_entropy": 6.5736799240112305,
+      "max_weight": 0.001396648003719747
+    },
+    "hybrid": {
+      "coupled_embedding_weight_decay": 0.0001,
+      "selected_epoch": 16,
+      "embedding_std": [
+        9.274698425773181e-29,
+        4.770182236265501e-25
+      ],
+      "mean_row_entropy": 6.573679447174072,
+      "uniform_entropy": 6.5736799240112305,
+      "max_weight": 0.001396648003719747
+    }
+  },
+  "final_embedding_weight_decay": 0.0
+}

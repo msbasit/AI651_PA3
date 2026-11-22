@@ -11,7 +11,7 @@
       "no_errors": true
     },
     "03_forecasting_experiments.ipynb": {
-      "code_cells": 9,
+      "code_cells": 10,
       "all_executed": true,
       "no_errors": true
     },
@@ -29,5 +29,13 @@
   "report_pages": 14,
   "native_latex_source": true,
   "first_page_identity_and_public_link": true,
-  "sha256_report": "6c2f7fd6c9d5a38cdf6acbde435c2d7c45fc5b4b31f486c66f9b7e1c1535c5a9"
+  "review_revision": "review-2026-11-22-v2",
+  "persistence_same_test_masks": true,
+  "graph_models_below_persistence": {
+    "fixed": true,
+    "adaptive": true,
+    "hybrid": true
+  },
+  "private_review_notes_ignored": true,
+  "sha256_report": "bc2c301de7a36dbcad7a951ca90e996523c3a301130e780f2c7ea63b1513463f"
 }

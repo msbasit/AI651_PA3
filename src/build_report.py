@@ -232,7 +232,7 @@ def build_tex():
             elif title.startswith('Q6(a)'):out.append(r'\FloatBarrier\section{Experimental analysis and interpretation}\label{sec:q6}\subsection{Forecasting comparison}')
             elif title.startswith('Q6(b)'):out.append(r'\FloatBarrier\subsection{Learned graph structure}')
             elif title.startswith('Q6(c)'):out.append(r'\FloatBarrier\subsection{Critical discussion}')
-            elif title.startswith('AI-use'):out.append(r'\FloatBarrier\appendix\section{AI-use disclosure}')
+            elif title.startswith('AI-use'):out.append(r'\FloatBarrier\appendix\section{AI Acknowledgement}')
         elif event['kind']=='paragraph':
             text=event['text'];style=event['style']
             if section=='Traffic forecasting on graphs':

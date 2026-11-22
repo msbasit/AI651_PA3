@@ -24,14 +24,17 @@ Public repository: [msbasit/AI651_PA3](https://github.com/msbasit/AI651_PA3).
 
 | Model | Validation MAE | Test MAE | Test RMSE | Training seconds | Epochs / selected |
 |---|---:|---:|---:|---:|---:|
-| Temporal-only | 57.73 | 65.72 | 103.88 | 277.2 | 20 / 19 |
-| Fixed graph | 109.44 | 123.28 | 192.00 | 375.9 | 20 / 18 |
-| Adaptive graph | 107.45 | 124.01 | 187.90 | 277.2 | 13 / 8 |
-| Hybrid graph | 85.89 | 97.69 | 149.46 | 477.1 | 20 / 20 |
+| Temporal-only | 53.21 | 61.75 | 97.28 | 780.0 | 39 / 34 |
+| Fixed graph | 49.85 | 58.88 | 92.48 | 930.9 | 40 / 38 |
+| Adaptive graph | 43.99 | 52.72 | 83.58 | 970.8 | 39 / 34 |
+| Hybrid graph | 47.12 | 55.11 | 87.19 | 609.7 | 24 / 19 |
+| Persistence | 81.18 | 87.11 | 132.88 | 0 (untrained) | -- |
 
-Errors are vehicles per 15-minute interval. Every model is scored on the same 26,389 test windows and 71,023,748 valid sensor-horizon targets. The temporal baseline wins this single-seed, finite-budget comparison. This does not establish that spatial information is generally unhelpful; the report discusses mixing losses, global scaling and the lack of a separate local path in this particular graph architecture.
+Errors are vehicles per 15-minute interval. Every method uses the same 26,389 test windows and 71,023,748 valid sensor-horizon targets. The lowest test MAE among the trained models is Adaptive graph (52.72). Checkpoints are selected by validation only. This is a single-seed comparison, and graph variants have additional parameters.
 
-Training times are synchronized XPU wall times including epoch validation. Hybrid epoch 13 took 67.2 seconds versus about 21 seconds for nearby epochs; the outlier is retained in its total. Full precision results are in `results/metrics.json`; deployment results are in `results/npu_metrics.json`.
+Training times are synchronized XPU wall times including epoch validation, independently measured and rounded. Exact totals and per-epoch durations are retained in `results/metrics.json` and history files. Full-test NPU deployment metrics are in `results/npu_metrics.json`.
+
+Following independent human review, this revision adds a local path, per-sensor scaling, stronger adaptive initialization, a longer budget, and persistence checks. Private review notes are excluded from the public repository and submission. These changes were made together; the rerun is not an ablation isolating a single cause.
 
 ## Environment
 
@@ -74,6 +77,7 @@ The individual source stages are equivalent:
 python src/theory.py
 python src/prepare.py
 python src/checks.py
+python src/baselines.py
 python src/train.py
 python src/analyze.py
 python src/npu.py
@@ -97,7 +101,7 @@ If official Kaggle files are already available, place them under `data/` as `ca_
 
 The code selects all 716 District-11 sensors. Every HDF column ID is checked against metadata; graph rows/columns are selected using the matching `ID2` values. [PeMS](https://pems.dot.ca.gov/?dnode=Clearinghouse) defines total flow as vehicles per five-minute interval. Three complete count intervals are **summed**, yielding vehicles per 15 minutes. This differs from the official benchmark notebook's mean-and-round convention, so numerical errors use a different physical scale.
 
-NaN, infinite and negative raw observations are invalid. Partial 15-minute bins remain missing labels. After the required date splits, input gaps are forward-filled within each split, then filled with per-sensor training medians if needed. True zeros are retained. Missing-label masks apply consistently to training and all metrics. A single mean/std from the filled 2020 series normalizes every split. Windows do not cross date boundaries.
+NaN, infinite and negative raw observations are invalid. Partial 15-minute bins remain missing labels. After the required date splits, input gaps are forward-filled within each split, then filled with per-sensor training medians if needed. True zeros are retained. Missing-label masks apply consistently to training and all metrics. Each sensor uses its own mean/std from the filled 2020 series, with unit scale for a constant training series. All predictions are inverted per sensor before scoring. Windows do not cross date boundaries.
 
 | Split | Dates | 15-minute bins | Eight-in/four-out windows |
 |---|---|---:|---:|
@@ -107,11 +111,11 @@ NaN, infinite and negative raw observations are invalid. Partial 15-minute bins 
 
 ## Experimental choices
 
-Each sensor receives two temporal convolutions (16 channels, width 3), a flattened-history projection to 16 features, one adjacency multiplication, a bias-free 16-to-16 channel projection with ReLU, and a 16-to-4 output head. The temporal baseline uses identity node mixing and retains the same channel projection. Shared initial weights are identical across experiments.
+Each sensor receives two temporal convolutions (16 channels, width 3), a flattened-history projection to 16 features, and a bias-free 16-to-16 local projection. Graph models add a separate bias-free 16-to-16 projection of adjacency-mixed features before the common ReLU and 16-to-4 head: `H = relu(local(Z) + spatial(A @ Z))`. Temporal-only omits the graph term. Shared encoder, local projection and head initial weights are identical across experiments; graph-only parameters are initialized afterwards.
 
-Fixed adjacency uses row-normalized `A+I`, keeping the supplied diagonal. Adaptive adjacency is `softmax(relu(E1 @ E2.T), dim=1)` with two 716-by-8 embedding matrices. It is dense, with no top-k in training. Hybrid adjacency is `0.5*fixed + 0.5*adaptive`, combining row-stochastic terms. Top-ten links are selected only for post-training analysis.
+Fixed adjacency first clears the provided diagonal, then adds exactly one unit self-loop and row normalizes. Adaptive adjacency is `softmax(relu(E1 @ E2.T), dim=1)` with two standard-normal 716-by-10 embedding matrices (std 1). It is dense, with no top-k training sparsification. Hybrid adjacency is `0.5*fixed + 0.5*adaptive`, combining row-stochastic terms. Top-ten links are selected only for post-training analysis.
 
-All runs use seed 25280025, batch 64, Adam at 0.002, weight decay 0.0001, norm clipping at 5, masked MAE, maximum 20 epochs and patience 5. Every epoch uses every training window. Independent epoch-seeded permutations keep batch order identical. No features, graph dependencies or normalization statistics are fitted on validation/test data. XPU seeds are fixed, but bitwise determinism across devices/releases is not guaranteed.
+All runs use seed 25280025, batch 64, Adam at 0.002, weight decay 0.0001 on forecasting weights and zero on graph embeddings, norm clipping at 5, maximum 40 epochs and patience 5. The loss is masked original-unit MAE divided by one fixed training-only global scale, preserving equal physical-unit weighting despite per-sensor normalization. Every epoch uses every training window. Independent epoch-seeded permutations keep batch order identical. Node embeddings are excluded from coupled weight decay because an intermediate diagnostic showed that their small gradients otherwise allowed the regularizer to erase them. The adaptive/hybrid runs were repeated after that graph diagnostic; the temporal/fixed runs have no embeddings and are unaffected. No features, graph dependencies or normalization statistics are fitted on validation/test data. XPU seeds are fixed, but bitwise determinism across devices/releases is not guaranteed.
 
 NPU exports freeze the learned adjacency after training and use static batch one, explicit `NPU` compilation and device-default FP16. Batch 16 failed with a measured compiler striding-layout error. The NPU notebook measures full-test accuracy for every model; it does not silently fall back to CPU. GPU and NPU latency configurations differ, so the reported per-batch times are not direct speedup comparisons.
 

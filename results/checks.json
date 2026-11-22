@@ -6,8 +6,15 @@
   "target_masks": true,
   "train_only_stats": true,
   "row_stochastic_graphs": true,
+  "exactly_one_self_loop": true,
+  "local_path_survives_graph_removal": true,
+  "per_sensor_inverse_scaling": true,
   "adaptive_gradients_nonzero": true,
   "identical_shared_initial_weights": true,
+  "initial_adaptive_entropy": {
+    "adaptive": 3.314005136489868,
+    "hybrid": 3.314005136489868
+  },
   "input_shape": [
     2,
     8,
