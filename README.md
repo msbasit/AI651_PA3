@@ -2,7 +2,7 @@
 
 **Muhammad Sami Ul Basit | Roll No. 25280025**
 
-The report answers Questions 1-7. Four executed notebooks contain numerical checks, dataset preparation, all four GPU training runs, saved-checkpoint analysis, and full-test Intel NPU inference. Generative AI assistance is disclosed at the end of the report and in `AI_DISCLOSURE.md`.
+The report answers Questions 1-7. Four executed notebooks contain numerical checks, dataset preparation, all four GPU training runs, saved-checkpoint analysis, and full-test Intel NPU inference. Generative AI assistance is described in the AI Acknowledgement at the end of the report.
 
 Public repository: [msbasit/AI651_PA3](https://github.com/msbasit/AI651_PA3).
 

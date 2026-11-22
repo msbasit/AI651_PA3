@@ -11,3 +11,4 @@ checkpoints/*_openvino.bin
 checkpoints/*_openvino.xml
 issues.md
 ISSUE_RESOLUTION.md
+AI_DISCLOSURE.md

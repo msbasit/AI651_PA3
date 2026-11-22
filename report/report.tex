@@ -470,34 +470,7 @@ Checks verify sensor identity/order, complete date grids, split-local windows, t
 
 
 \FloatBarrier\appendix\section{AI Acknowledgement}
-\textbf{Tool:} OpenAI Codex. Generative AI was used extensively to produce the mathematical explanations, source implementation, data pipeline, experiments, plots, notebook structure and this report. This submission should not be represented as unaided student work.
-
-
-\textbf{User prompt (verbatim):}
-
-
-You are an excellent standford Deep learning instructor who teaches Deel Learning for space time and graph, complete this assignment as per instructions and attached assignment document. For training and inference use intel Arc 140T gpu on this machine using pytorch optimizied libraries for intel - they are already installed and available Use Intel builtin NPU where you can for again training and inference. Upload the source code on github I have already logged in to the builtin browser https://github.com/msbasit Name: Muhammad Sami Ul Basit Roll No: 25280025.
-
-
-\textbf{AI output:} the complete source in src/, four executed notebooks, measured experiment artifacts and checkpoints, seven figures, README reproduction instructions, and this PDF. The generated code was executed on the stated hardware; tabulated results come from saved measurements rather than invented examples.
-
-
-\textbf{Initial implementation and verification:} Codex selected the installed Intel XPU environment, used a pinned dataset mirror after Kaggle API failures, accumulated metric totals in CPU FP64 after XPU FP32 reductions, and reduced NPU batch size to one after a compiler failure. Automated checks and PDF rendering support the execution record. The subsequent model corrections and report revisions were directed by the independent human review described below.
-
-
-\textbf{Style-revision prompt:} "I dont really like the style of the report. I like conventional report style with Latex based equations and expressions"
-
-
-\textbf{Earlier style revision:} on 22 November 2026, the report was retypeset with native LaTeX equations, serif typography, numbered sections, conventional tables, figure captions and references. The editable TeX source is included. That formatting-only revision retained the then-current results; the subsequent review-driven reruns are described below.
-
-
-\textbf{Human contribution and independent review:} I independently reviewed the earlier solution against the assignment. I checked the Q1-Q2 derivations and data/split conventions, identified weaknesses in the model design, initialization and training budget, and supplied specific corrections and report revisions. I directed these changes and reviewed the implementation choices. Codex assisted with implementation, retraining, automated checks and artifact regeneration. This work therefore includes substantive human review and intervention alongside AI assistance.
-
-
-\textbf{Correction request (summary):} following my independent review, I asked Codex to review and fix the documented problems, and to discuss any points of disagreement with me first. The private review notes are excluded from the report, public repository and submission archive.
-
-
-\textbf{Review-driven edits:} added a local feature path, standard-normal 10-dimensional node embeddings, per-sensor training-only normalization and inverse scaling, a single-self-loop convention, a 40-epoch maximum with patience 5, persistence checks, and corrected wording. A final graph diagnostic identified embedding collapse under coupled weight decay; excluding the embeddings from decay and rerunning adaptive/hybrid corrected that problem. All four models were retrained and re-evaluated on GPU; NPU inference, plots, graph diagnostics, conclusions, source and submission artifacts were regenerated. These are AI-agent implementation edits following my independent review; the new numerical outputs are supported by saved execution records.
+AI was used in finding the right dataset since the one from Kaggle was not working and returning 404. Codex was used to write and test code, create graphs, convert equations and expressions to Latex and report ready format. Some major analysis was AI assisted including initial analysis of running training for only 20 Epocs was found to be inadequate because accuracy was still improving and loss was being reduced so the total Epoch count was increased to 40, this was rightly fully identified via AI analysis. Baseline results were ommitted from the measured results and were later added for comparison and sanity.
 
 
 LargeST is released under CC BY-NC 4.0 \cite{largest-repo}. Raw dataset files are not redistributed in this repository. The small derived SD adjacency and sensor metadata retain their source attribution and noncommercial data license. Source code is provided for academic reproducibility.

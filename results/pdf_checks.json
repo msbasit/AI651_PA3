@@ -76,13 +76,13 @@
     {
       "page": 13,
       "first_line": "frozen only when exporting for inference.",
-      "characters": 3367,
+      "characters": 3229,
       "outside_bounds": []
     },
     {
       "page": 14,
-      "first_line": "The generated code was executed on the stated hardware; tabulated results come from saved",
-      "characters": 3899,
+      "first_line": "References",
+      "characters": 938,
       "outside_bounds": []
     }
   ],

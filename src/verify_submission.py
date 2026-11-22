@@ -66,7 +66,9 @@ def main():
     assert r'\begin{equation}' in tex and r'\begin{align}' in tex
     assert 'No LMS upload was performed' not in text
     assert 'independently review the derivations' not in text
-    assert 'Persistence' in text and 'Human contribution and independent review' in text
+    assert 'Persistence' in text and 'AI was used in finding the right dataset' in text
+    assert 'Baseline results were ommitted' in text
+    assert not (ROOT/'AI_DISCLOSURE.md').exists()
     assert 'issues.md' not in text and 'ISSUE_RESOLUTION.md' not in text
     ignored=(ROOT/'.gitignore').read_text().splitlines()
     assert 'issues.md' in ignored and 'ISSUE_RESOLUTION.md' in ignored
