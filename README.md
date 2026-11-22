@@ -1,48 +1,321 @@
-# AI651 Assignment 3: traffic forecasting on graphs
+# Traffic Forecasting on Graphs
 
-**Muhammad Sami Ul Basit | Roll No. 25280025**
+### AI651 · Deep Learning for Space, Time and Graphs · Assignment 3
 
-The report answers Questions 1-7. Four executed notebooks contain numerical checks, dataset preparation, all four GPU training runs, saved-checkpoint analysis, and full-test Intel NPU inference. Generative AI assistance is described in the AI Acknowledgement at the end of the report.
+**Muhammad Sami Ul Basit · Roll No. 25280025 · Lahore University of Management Sciences**
 
-Public repository: [msbasit/AI651_PA3](https://github.com/msbasit/AI651_PA3).
+Four lightweight forecasting models learn from **716 San Diego traffic sensors**. This report moves from aggregation and direction on graphs to full-year traffic forecasting, learned connectivity, and deployment on Intel hardware.
 
-## Deliverables
+[**PDF report**](PA3_25280025_Muhammad_Sami_Ul_Basit.pdf) · [Executed notebooks](notebooks/) · [Source code](src/) · [Saved measurements](results/) · [LaTeX source](report/report.tex)
 
-- `PA3_25280025_Muhammad_Sami_Ul_Basit.pdf`: technical report and written solutions, with the repository link on its first page.
-- `notebooks/01_theory.ipynb`: exhaustive Q1 encodings and Q2 motion verification/heatmaps.
-- `notebooks/02_data_and_checks.ipynb`: LargeST-SD extraction, plots and meaningful implementation checks.
-- `notebooks/03_forecasting_experiments.ipynb`: temporal-only, fixed, adaptive and hybrid models, their real training outputs and analysis.
-- `notebooks/04_npu_inference.ipynb`: full-test explicit Intel AI Boost NPU inference.
-- `src/`: runnable, reusable source code underlying the notebooks and report.
-- `report/report.tex`: editable native LaTeX report source, with numbered equations and conventional academic typography.
-- `results/`: per-epoch histories, original-unit metrics, exact configuration, download hashes, graph diagnostics, prediction arrays and logs.
-- `figures/`: all report figures.
-- `checkpoints/{temporal,fixed,adaptive,hybrid}.pt`: validation-selected FP32 model weights.
-- `data/sd_meta.csv`, `data/sd_adj.npy`, `data/training_fallback.npy`: small derived artifacts. Large raw files and the prepared cache are excluded from Git.
+| Best test MAE | Improvement over temporal-only | Improvement over persistence | Forecast task |
+|:---:|:---:|:---:|:---:|
+| **52.72** · Adaptive graph | **14.63%** lower MAE | **39.48%** lower MAE | **2 hours → next 1 hour** |
+
+[Results](#measured-results) · [Forecasts](#forecast-quality) · [Learning curves](#training-and-selection) · [Dataset](#dataset-and-road-graph) · [Architecture](#forecasting-models) · [Learned graphs](#learned-connectivity) · [Theory](#aggregation-and-direction) · [Intel NPU](#intel-npu-deployment) · [Reproduce](#reproduce-the-experiments)
 
 ## Measured results
 
-| Model | Validation MAE | Test MAE | Test RMSE | Training seconds | Epochs / selected |
+![Full-test MAE and RMSE for four trained models and the persistence baseline](figures/readme_results.png)
+
+| Model | Validation MAE | Test MAE | Test RMSE | Training seconds | Run / selected epoch |
 |---|---:|---:|---:|---:|---:|
 | Temporal-only | 53.21 | 61.75 | 97.28 | 780.0 | 39 / 34 |
 | Fixed graph | 49.85 | 58.88 | 92.48 | 930.9 | 40 / 38 |
-| Adaptive graph | 43.99 | 52.72 | 83.58 | 970.8 | 39 / 34 |
+| **Adaptive graph** | 43.99 | **52.72** | 83.58 | 970.8 | 39 / 34 |
 | Hybrid graph | 47.12 | 55.11 | 87.19 | 609.7 | 24 / 19 |
-| Persistence | 81.18 | 87.11 | 132.88 | 0 (untrained) | -- |
+| Persistence | 81.18 | 87.11 | 132.88 | 0 (untrained) | — |
 
-Errors are vehicles per 15-minute interval. Every method uses the same 26,389 test windows and 71,023,748 valid sensor-horizon targets. The lowest test MAE among the trained models is Adaptive graph (52.72). Checkpoints are selected by validation only. This is a single-seed comparison, and graph variants have additional parameters.
+Errors are **vehicles per 15-minute interval**, pooled over all four forecast horizons. Every method uses **26,389 test windows** and **71,023,748 valid sensor–horizon targets** from April–December 2021. Checkpoints are selected by **validation MAE**, then scored on the common test period. The best result in this single-seed comparison is **Adaptive graph**.
 
-Training times are synchronized XPU wall times including epoch validation, independently measured and rounded. Exact totals and per-epoch durations are retained in `results/metrics.json` and history files. Full-test NPU deployment metrics are in `results/npu_metrics.json`.
+<details>
+<summary><strong>What is persistence, and how are the metrics computed?</strong></summary>
 
-Following independent human review, this revision adds a local path, per-sensor scaling, stronger adaptive initialization, a longer budget, and persistence checks. Private review notes are excluded from the public repository and submission. These changes were made together; the rerun is not an ablation isolating a single cause.
+Persistence repeats each sensor's last observed count for all four future steps. If the last count is 500, the forecast is **500, 500, 500, 500**. It requires no training and provides a sanity check for the learned models.
 
-## Environment
+```math
+\widehat y^{\mathrm{persist}}_{s,h,i}=x_{s+7,i},\qquad h\in\{0,1,2,3\}.
+```
 
-Report generation requires a LaTeX distribution (MiKTeX or TeX Live) providing `pdflatex`, Latin Modern, AMS math, booktabs, tabularx, graphicx, float, placeins, microtype, caption, hyperref and xurl. `python src/build_report.py` generates `report/report.tex` from measured records and compiles it twice. To edit TeX directly, run `pdflatex -output-directory=tmp/latex report/report.tex` twice from the project root and copy the resulting PDF to the deliverable filename; the Python builder will regenerate the TeX source when rerun.
+Let $m_{s,h,i}$ mark an originally valid target and let $C=\sum_{s,h,i}m_{s,h,i}$. Predictions are returned to each sensor's original units before evaluation:
 
-Use **Python 3.12 with Intel XPU-enabled PyTorch**. The measured machine uses a Core Ultra 7 255H, Intel Arc 140T integrated GPU and Intel AI Boost NPU. Exact versions and driver details are saved in `results/environment.json` and `results/hardware.json`.
+```math
+\operatorname{MAE}=\frac{1}{C}\sum_{s,h,i}m_{s,h,i}\left|\widehat y_{s,h,i}-y_{s,h,i}\right|,
+\qquad
+\operatorname{RMSE}=\sqrt{\frac{1}{C}\sum_{s,h,i}m_{s,h,i}\left(\widehat y_{s,h,i}-y_{s,h,i}\right)^2}.
+```
 
-Keep a working Intel XPU installation. For a new environment, install the matching XPU wheel explicitly before the remaining packages:
+RMSE penalizes large failures more strongly. Overlapping-window forecasts count separately. XPU reductions use FP32, with batch totals accumulated in CPU FP64. Missing observations are excluded rather than treated as zero labels. [Raw model metrics](results/metrics.json) · [Baseline measurements](results/baselines.json)
+
+</details>
+
+## Forecast quality
+
+![Actual traffic and temporal, fixed, adaptive, and hybrid forecasts at three predetermined sensors](figures/q6_predictions.png)
+
+These are **15-minute-ahead** forecasts for sensors selected by graph-order indices **0, 358, 715**, using input starts on **12–13 April 2021**. The sensors and dates were chosen independently of prediction error. Missing observed values remain gaps. The curves show how closely each model follows daily volume changes; the next figure also compares errors at **15, 30, 45, and 60 minutes** over the entire test period.
+
+## Training and selection
+
+![Validation MAE learning curves and test MAE versus forecast horizon](figures/q6_learning.png)
+
+The left panel shows **full-validation MAE per epoch**. The right panel uses each validation-selected checkpoint on the common test set. Errors increase with forecast horizon. All three graph models outperform temporal-only and persistence in this run.
+
+Training uses **Adam, learning rate 0.002, batch 64, hidden dimension 16, FP32, seed 25280025**, a maximum of **40 epochs**, and **patience 5**. The fixed model selected epoch 38 of 40; full convergence is not established. Additional parameters and a single seed limit claims about a universal ranking.
+
+<details>
+<summary><strong>Training loss, timing, and optimizer checks</strong></summary>
+
+Per-sensor normalization must not accidentally give low-volume sensors greater weight in the physical-unit loss. For a batch with $C_{\mathcal B}$ valid targets, normalized predictions are weighted by each training standard deviation $\sigma_i$:
+
+```math
+\mathcal L_{\mathcal B}=\frac{1}{S_{\mathrm{train}}C_{\mathcal B}}
+\sum_{(s,h,i)\in\mathcal B}m_{s,h,i}\sigma_i
+\left|\widehat{\widetilde y}_{s,h,i}-\widetilde y_{s,h,i}\right|.
+```
+
+$S_{\mathrm{train}}$ is one common training-only scale for numerical conditioning, so this is proportional to original-unit MAE. Gradients are clipped to norm 5. Forecasting weights use weight decay 0.0001; **graph embeddings use zero weight decay**. An intermediate diagnostic found that coupled decay otherwise erased the weak-gradient embeddings, producing a uniform graph. Adaptive/hybrid training was repeated after that structural check. [Diagnostic record](results/optimizer_diagnostic.json)
+
+All shared encoder, local projection, and forecast-head weights have identical initial values across models; independent epoch-seeded shuffles preserve batch order. Fixed seeds do not guarantee bitwise XPU determinism. Training times include executed epochs and validation, with synchronized XPU wall timing; preparation, initial warmup, and final evaluation are excluded. Each total is independently measured and rounded. [Exact configuration](results/config.json) · [Per-epoch histories](results/)
+
+</details>
+
+## Dataset and road graph
+
+**LargeST-SD** contains 716 District-11 highway sensors. Eight 15-minute observations form a **two-hour input**, and the next four intervals form a **one-hour forecast**.
+
+| Split | Period | 15-minute bins | 8-in / 4-out windows |
+|---|---|---:|---:|
+| Training | Jan–Dec 2020 | 35,136 | 35,125 |
+| Validation | Jan–Mar 2021 | 8,640 | 8,629 |
+| Testing | Apr–Dec 2021 | 26,400 | 26,389 |
+
+```math
+X_s=[x_s,\ldots,x_{s+7}]\in\mathbb R^{8\times716\times1},\qquad
+Y_s=[x_{s+8},\ldots,x_{s+11}]\in\mathbb R^{4\times716\times1}.
+```
+
+![Provided directed adjacency matrix and non-self row degree distribution](figures/q3_graph.png)
+
+The supplied directed graph has **18,035 nonzero entries**, including **716 self-loops** and **17,319 non-self ordered edges**. Its non-self mean row degree is **24.19**. Graph rows and columns follow verified sensor metadata order. In this implementation, row $i$ aggregates information from source sensor $j$ with weight $A_{ij}$.
+
+<details>
+<summary><strong>See a week of traffic and the preprocessing details</strong></summary>
+
+![Complete week of traffic at three predetermined sensors during February 2020](figures/q3_week.png)
+
+Three complete five-minute count intervals are **summed** to preserve volume:
+
+```math
+x_t^{(15\mathrm{min})}=\sum_{k=0}^{2}x_{3t+k}^{(5\mathrm{min})}.
+```
+
+This differs from the official benchmark's mean-and-round convention, so the numerical error scale is not directly comparable with that benchmark. Nonfinite and negative raw values are invalid; true zeros remain valid. A partial 15-minute bin is not a valid target.
+
+Chronological splits are applied **before input filling**. Gaps are forward-filled within their own split, then use a per-sensor training median if needed. Labels retain the original validity masks. Each sensor's mean and standard deviation come only from the filled **2020 training series**:
+
+```math
+\widetilde x_{t,i}=\frac{x_{t,i}-\mu_i}{\sigma_i},\qquad
+\widehat y_{s,h,i}=\sigma_i\widehat{\widetilde y}_{s,h,i}+\mu_i.
+```
+
+A constant training series uses unit scale. No window crosses a date boundary, giving $T-11$ windows per split. All 8,600 raw HDF column IDs are checked against metadata before selecting the 716 SD sensors. [Preparation statistics and sensor neighborhoods](results/preparation.json) · [Implementation checks](results/checks.json)
+
+</details>
+
+<details>
+<summary><strong>Dataset source, download integrity, and raw-file format</strong></summary>
+
+The [official LargeST project](https://github.com/liuxu77/LargeST) links to Kaggle, whose API returned empty HTTP 404 responses during this run. The downloader therefore uses a [public mirror](https://huggingface.co/datasets/ttydsc30/TrafficForecast-LargeST-Project-Dataset), pinned to revision `fcdd669cb606db00ddb42d526fdde4fb482b2d32`. SHA-256 LFS digests verify transfer integrity against the mirror; equivalence to an independently downloaded Kaggle copy was not established. [Download provenance](results/download_provenance.json)
+
+Raw files occupy about 15 GB. Range downloads resume with `.ranges.json` markers and verify complete hashes. If the official files are already available, place `ca_his_raw_2020.h5`, `ca_his_raw_2021.h5`, `ca_meta.csv`, and `ca_rn_adj.npy` under `data/` and skip the downloader. The HDF datasets are `t/axis0`, `t/axis1`, and `t/block0_values`. Use the original five-minute files. Raw data and the large prepared cache are excluded from Git.
+
+</details>
+
+## Forecasting models
+
+```mermaid
+flowchart LR
+    X["8 traffic observations per sensor"] --> T["Two temporal convolutions"]
+    T --> Z["16 features per sensor"]
+    Z --> L["Local projection"]
+    Z --> G["Graph aggregation and projection"]
+    A["Fixed / adaptive / hybrid adjacency"] --> G
+    L --> S["Add and ReLU"]
+    G --> S
+    S --> H["Shared forecast head"]
+    H --> Y["Next 4 traffic counts per sensor"]
+```
+
+The **local path** preserves each sensor's representation. Graph models add information from neighbors; temporal-only omits the graph branch. Two temporal convolutions use 16 channels, width 3, padding 1, and ReLU; the flattened eight-step feature map is projected from 128 to 16 features. The final head predicts all four future intervals directly.
+
+```math
+H=\operatorname{ReLU}\!\left(ZW_{\mathrm{local}}+\widehat A ZW_{\mathrm{graph}}\right),\qquad
+\widehat Y=\operatorname{Head}(H).
+```
+
+| Variant | Adjacency | Trainable parameters |
+|---|---|---:|
+| Temporal-only | No graph term | 3,236 |
+| Fixed | Directed road graph, one unit self-loop | 3,492 |
+| Adaptive | Learned dense row-stochastic graph | 17,812 |
+| Hybrid | 50% fixed + 50% learned graph | 17,812 |
+
+### Fixed, adaptive, and hybrid adjacency
+
+For the fixed graph, clear the provided diagonal, add **exactly one unit self-loop**, then row normalize:
+
+```math
+A_{\mathrm{off}}=A-\operatorname{diag}(\operatorname{diag}(A)),\qquad
+\widehat A_{\mathrm{fixed}}=D^{-1}(A_{\mathrm{off}}+I),\qquad
+D_{ii}=\sum_j(A_{\mathrm{off}}+I)_{ij}.
+```
+
+Two independent $716\times10$ standard-normal embedding matrices define the adaptive graph:
+
+```math
+E_1,E_2\sim\mathcal N(0,1),\qquad
+\widehat A_{\mathrm{adaptive}}=\operatorname{softmax}_{\mathrm{row}}\!\left(\operatorname{ReLU}(E_1E_2^\top)\right).
+```
+
+```math
+\widehat A_{\mathrm{hybrid}}=0.5\widehat A_{\mathrm{fixed}}+0.5\widehat A_{\mathrm{adaptive}}.
+```
+
+All rows sum to one. The adaptive graph remains **dense and differentiable through softmax and positive ReLU logits**; negative logits have zero ReLU gradient at that step. No top-k training sparsification is used. Top-ten links are selected only for analysis after training.
+
+![Fixed, adaptive, and hybrid adjacency matrices on a shared logarithmic scale](figures/q5_adjacencies.png)
+
+All panels share a logarithmic weight scale from $10^{-5}$ to $1$. Gray indicates exact zeros; smaller positive values use the lowest display color. This display clipping removes no model weights. [Model implementation](src/models.py) · [Saved graph arrays](results/)
+
+## Learned connectivity
+
+For each sensor, the **ten strongest learned non-self links** give 7,160 ordered edges. Their overlap with road edges and great-circle distance provide a quantitative comparison with physical connectivity. The hybrid row analyzes its **learned component**, not the mixed matrix that already contains fixed-road edges.
+
+| Learned component | Road-edge overlap | Mean distance | Median distance | Links within 5 km | Row entropy |
+|---|---:|---:|---:|---:|---:|
+| Adaptive graph | 4.75% | 26.38 km | 21.22 km | 8.14% | 3.218 nats |
+| Hybrid graph | 2.29% | 29.80 km | 25.40 km | 4.27% | 2.095 nats |
+| All non-self pairs (reference) | 3.38% | 27.09 km | — | 5.90% | 6.574 nats (uniform) |
+
+![Strongest learned non-self adaptive connections for 60 predetermined sensors on geographic coordinates](figures/q6_learned_map.png)
+
+The map uses 60 evenly spaced graph-order indices. Green lines coincide with provided road edges; red lines are absent from that graph. Lines show learned associations, not road routes. Adaptive links are slightly more local on average than uniform pairs, but their mean separation remains much larger than the **2.28 km** mean for road edges.
+
+**Interpretation.** A useful forecasting graph need not recover the road map. Common commuting demand can connect distant sensors; correlated demand, confounding, or overfitting can produce similar links. Lower error supports predictive usefulness, not causal or physical connectivity. Hybrid mixing can combine a structural prior with learned dependencies, but it is not guaranteed to outperform either component. [Exact graph diagnostics](results/graph_analysis.json)
+
+**Limits.** These are single-seed, small-model, fixed-budget results. Several revisions were made together, so their individual effects are not isolated. Static adjacency misses time-varying incidents and propagation delays; the 2020–2021 split also includes demand shift. Missingness may be nonrandom, so scores describe observed targets only.
+
+## Aggregation and direction
+
+The theory in Q1–Q2 explains why the information retained by a graph layer matters for traffic forecasting.
+
+<details>
+<summary><strong>Q1 · What can sum, mean, and max remember? Open the derivations and comparison.</strong></summary>
+
+An affine scalar message preserves only the neighborhood size $n_v$ and total state $S_v$:
+
+```math
+\sum_{u\in\mathcal N(v)}\phi(x_u)=\sum_{u\in\mathcal N(v)}(wx_u+c)=wS_v+cn_v.
+```
+
+Neighborhoods $\{-1,+1\}$ and $\{0,0\}$ therefore remain indistinguishable for every $w,c$, although their number of steady sensors differs.
+
+A nonlinear scalar can encode all three counts for neighborhoods of size at most $K$. Let $B=K+1$ and choose:
+
+```math
+\phi(-1)=1,\quad\phi(0)=B,\quad\phi(+1)=B^2,\qquad
+q=n_-+Bn_0+B^2n_+.
+```
+
+The counts are base-$B$ digits, so there are no carries. For $K=8$, $B=9$ and all **164 nonempty count triples** have distinct codes. The simpler message $\phi(x)=x^2$ counts non-steady neighbors.
+
+For one-hot messages ordered as slowing, steady, speeding up, write the sum as $(s,z,p)$ and $n=s+z+p>0$:
+
+| Task | Sum | Mean | Max |
+|---|---|---|---|
+| Count steady | Yes: return $z$ | No: degree information is lost | No: multiplicity is lost |
+| Slowing majority | Yes: test $2s>n$ | Yes: test first coordinate $>1/2$ | No: only presence is retained |
+| Any slowing | Yes: test $s>0$ | Yes: test $s/n>0$ | Yes: test first coordinate $=1$ |
+
+For counting, $\{0\}$ and $\{0,0\}$ have equal means/maxima but different answers. For majority under max, $\{-1,-1,+1\}$ and $\{-1,+1,+1\}$ have the same presence vector but opposite answers. [Exhaustive numerical checks](results/theory_checks.json) · [Theory notebook](notebooks/01_theory.ipynb)
+
+</details>
+
+<details>
+<summary><strong>Q2 · Why symmetric neighbors diffuse motion, and how direction or history resolves it</strong></summary>
+
+For an impulse at sensor 20, a symmetric layer predicts $(b,a,b)$ at sensors $(19,20,21)$, but backward motion requires $(1,0,0)$:
+
+```math
+\mathcal L(a,b)=a^2+(b-1)^2+b^2,\qquad
+(a^*,b^*)=(0,\tfrac12),\qquad\mathcal L_{\min}=\tfrac12.
+```
+
+![True backward motion compared with the recursively applied symmetric neighbor layer](figures/q2_rollouts.png)
+
+The true pattern translates without losing its shape; periodic wrapping occurs in the **true-motion panel**. Equal neighbor weights spread the signal both ways. Sensors 19 and 21 are constrained to the same prediction $b$, so the asymmetric target cannot be fitted.
+
+Direction labels allow separate weights:
+
+```math
+\widehat x_i(t+1)=a x_i(t)+w_-x_{i-1}(t)+w_+x_{i+1}(t),\qquad
+(a,w_-,w_+)=(0,0,1).
+```
+
+This exactly gives $x_{i+1}(t)$ for backward motion. With PyTorch cross-correlation, use kernel **[0, 0, 1]**, circular padding 1, and no bias.
+
+One past local value also resolves the ambiguity:
+
+```math
+\widehat x_i(t+1)=x_{i-1}(t)+x_{i+1}(t)-x_i(t-1).
+```
+
+For backward motion, $x_i(t-1)=x_{i-1}(t)$, leaving $x_{i+1}(t)$. For forward motion, $x_i(t-1)=x_{i+1}(t)$, leaving $x_{i-1}(t)$. Thus the same coefficients **$(a,b,c)=(0,1,-1)$** work in both directions under the stated constant-speed, shape-preserving assumptions. Numerical errors are at floating-point precision. [Implementation](src/theory.py)
+
+</details>
+
+## Intel NPU deployment
+
+Training and primary inference use **Intel Arc 140T with native PyTorch XPU FP32 kernels**. The selected checkpoints are also evaluated on **Intel AI Boost NPU using OpenVINO**, explicit device selection, and no AUTO/CPU fallback.
+
+| Model | GPU test MAE | NPU test MAE | NPU test RMSE | Full-test seconds | Median batch ms |
+|---|---:|---:|---:|---:|---:|
+| Temporal-only | 61.75 | 61.75 | 97.28 | 26.4 | 0.823 |
+| Fixed graph | 58.88 | 58.88 | 92.48 | 24.0 | 0.729 |
+| Adaptive graph | 52.72 | 52.71 | 83.57 | 24.8 | 0.790 |
+| Hybrid graph | 55.11 | 55.11 | 87.20 | 25.1 | 0.770 |
+
+Every NPU run evaluates all **26,389 test windows** with static **batch 1** and device-default FP16 execution. Its MAE closely matches the GPU result. Full-test seconds include input packing, inference, and metric accumulation; compilation and warmups are excluded.
+
+<details>
+<summary><strong>Hardware, precision, and deployment constraints</strong></summary>
+
+| Component | Measured configuration |
+|---|---|
+| CPU | Intel Core Ultra 7 255H |
+| System RAM | 46.9 GiB |
+| Training GPU | Intel Arc 140T integrated GPU |
+| Additional inference | Intel AI Boost NPU |
+| PyTorch | 2.14.1+xpu · FP32 |
+| OpenVINO | 2026.4.1 · NPU device-default FP16 |
+| GPU driver | 32.0.101.9175 |
+| NPU driver | 32.0.100.5600 |
+
+The GPU's reported 23 GB refers to shared integrated-GPU memory, not dedicated VRAM. This PyTorch installation has no NPU autograd backend, so training uses XPU and NPU deployment uses OpenVINO. Learned adjacency is frozen only after checkpoint selection for export. Batch 16 failed with a compiler striding-layout error; static batch 1 succeeded.
+
+NPU batch latency includes its synchronous call and output copy. GPU latency uses resident batch-16 inputs, so these are **not direct speedup comparisons**. FP16 slightly changes predictions. [Environment](results/environment.json) · [Hardware](results/hardware.json) · [NPU measurements](results/npu_metrics.json) · [GPU latency](results/gpu_latency.json)
+
+</details>
+
+## Reproduce the experiments
+
+Use Python 3.12 and an Intel XPU-enabled PyTorch environment. Select the same interpreter for terminal commands and notebooks. GPU stages should run sequentially for meaningful timing.
+
+<details>
+<summary><strong>1 · Install dependencies and register the notebook kernel</strong></summary>
+
+Keep an existing working XPU installation. For a new environment, install the matching wheel before the remaining packages:
 
 ```powershell
 python -m pip install torch==2.14.1+xpu --index-url https://download.pytorch.org/whl/xpu
@@ -51,11 +324,14 @@ python -c "import torch; print(torch.__version__,torch.xpu.is_available()); prin
 python -m ipykernel install --user --name ai651-xpu --display-name 'Python (Intel Arc XPU - AI651)'
 ```
 
-Training uses native PyTorch XPU kernels in FP32. It does not need PyTorch Geometric or Intel Extension for PyTorch. OpenVINO handles NPU inference. The installed PyTorch has no NPU training/autograd backend. NPU compilation requires its Windows driver and an OpenVINO-supported Intel NPU.
+Training does not require PyTorch Geometric or Intel Extension for PyTorch. NPU compilation requires the Windows NPU driver and compatible OpenVINO runtime.
 
-## Reproduce the complete submission
+</details>
 
-Run from the project root. Select the same XPU interpreter for terminal and notebooks.
+<details>
+<summary><strong>2 · Execute the full workflow, including report generation</strong></summary>
+
+Run from the repository root:
 
 ```powershell
 python src/download_data.py
@@ -63,15 +339,23 @@ python src/execute_notebook.py 01_theory.ipynb
 python src/execute_notebook.py 02_data_and_checks.ipynb
 python src/execute_notebook.py 03_forecasting_experiments.ipynb
 python src/execute_notebook.py 04_npu_inference.ipynb
+python src/update_readme.py
 python src/build_report.py
 python src/render_report.py
 python src/verify_submission.py
 python src/package_submission.py
 ```
 
-Notebook execution saves actual outputs after each cell. Standard Jupyter **Run All** also works. `src/make_notebooks.py` creates fresh, unexecuted notebook templates; do not run it over saved outputs unless you intend to regenerate and execute them again.
+Standard Jupyter **Run All** also works. Notebook execution saves outputs after each cell. `src/make_notebooks.py` creates fresh unexecuted templates; running it over saved notebooks requires executing them again.
 
-The individual source stages are equivalent:
+Report generation needs `pdflatex` from MiKTeX or TeX Live, with Latin Modern, AMS math, booktabs, tabularx, graphicx, float, placeins, microtype, caption, hyperref, and xurl. The builder regenerates the editable `report/report.tex` and compiles twice. To edit that TeX directly, compile it twice with `pdflatex -output-directory=tmp/latex report/report.tex` and copy the resulting PDF to `PA3_25280025_Muhammad_Sami_Ul_Basit.pdf`; rerunning the Python builder replaces manual TeX edits.
+
+</details>
+
+<details>
+<summary><strong>3 · Run individual source stages or evaluate existing checkpoints</strong></summary>
+
+The equivalent source stages are:
 
 ```powershell
 python src/theory.py
@@ -81,46 +365,52 @@ python src/baselines.py
 python src/train.py
 python src/analyze.py
 python src/npu.py
+python src/update_readme.py
 python src/build_report.py
 ```
 
-To evaluate the saved checkpoints without retraining, first download/prepare data, then run:
+To evaluate the saved models without retraining, download and prepare the data, then run:
 
 ```powershell
 python src/train.py --evaluate-only
 python src/npu.py
 ```
 
-GPU stages should run sequentially for meaningful timings. Checkpoints are selected by full validation MAE, then evaluated on the full common test period. Re-running training replaces checkpoints and metrics for its selected modes; after any change, regenerate analysis, NPU results and the report. The report builder requires all four measured model results and does not supply substitute values.
+Retraining replaces the chosen modes' checkpoints and metrics. Regenerate analysis, NPU results, README, and report afterwards. No replacement values are supplied for missing experiments.
 
-## Dataset and preprocessing
+</details>
 
-The [official LargeST project](https://github.com/liuxu77/LargeST) hosts its raw data on Kaggle. Its API returned empty HTTP 404 responses during this run. The downloader uses this [public mirror](https://huggingface.co/datasets/ttydsc30/TrafficForecast-LargeST-Project-Dataset), pinned to revision `fcdd669cb606db00ddb42d526fdde4fb482b2d32`. SHA-256 LFS digests verify transfer integrity against the mirror; equivalence to a separately downloaded Kaggle copy was not independently established. `results/download_provenance.json` records exact URLs, sizes and hashes. Raw files consume about 15 GB. Range downloads resume using `.ranges.json` markers and verify complete hashes before preparation.
+### Files and notebooks
 
-If official Kaggle files are already available, place them under `data/` as `ca_his_raw_2020.h5`, `ca_his_raw_2021.h5`, `ca_meta.csv`, `ca_rn_adj.npy`, and skip the downloader. Expected raw HDF datasets are `t/axis0`, `t/axis1` and `t/block0_values`. Use original five-minute files, not the benchmark's already-resampled files.
+| Artifact | Contents |
+|---|---|
+| [PDF report](PA3_25280025_Muhammad_Sami_Ul_Basit.pdf) | Full written solutions, results, and discussion |
+| [01 · Theory](notebooks/01_theory.ipynb) | Q1 encodings and Q2 direction/motion checks |
+| [02 · Data and checks](notebooks/02_data_and_checks.ipynb) | SD extraction, preprocessing, graph, and verification |
+| [03 · Forecasting](notebooks/03_forecasting_experiments.ipynb) | Four executed GPU runs, baselines, and saved-checkpoint analysis |
+| [04 · NPU inference](notebooks/04_npu_inference.ipynb) | Explicit NPU inference over the full test period |
+| [Source](src/) | Reusable implementations and report generation |
+| [Results](results/) | Metrics, histories, configuration, hashes, graph arrays, predictions, and logs |
+| [Checkpoints](checkpoints/) | Four validation-selected FP32 model states |
+| [Figures](figures/) | Report figures and the README comparison chart |
+| [LaTeX source](report/report.tex) | Editable conventional report |
+| [Derived data](data/) | Small SD graph, metadata, and training fallback values |
 
-The code selects all 716 District-11 sensors. Every HDF column ID is checked against metadata; graph rows/columns are selected using the matching `ID2` values. [PeMS](https://pems.dot.ca.gov/?dnode=Clearinghouse) defines total flow as vehicles per five-minute interval. Three complete count intervals are **summed**, yielding vehicles per 15 minutes. This differs from the official benchmark notebook's mean-and-round convention, so numerical errors use a different physical scale.
+## AI Acknowledgement
 
-NaN, infinite and negative raw observations are invalid. Partial 15-minute bins remain missing labels. After the required date splits, input gaps are forward-filled within each split, then filled with per-sensor training medians if needed. True zeros are retained. Missing-label masks apply consistently to training and all metrics. Each sensor uses its own mean/std from the filled 2020 series, with unit scale for a constant training series. All predictions are inverted per sensor before scoring. Windows do not cross date boundaries.
+<details>
+<summary>Read the acknowledgement included in the PDF report</summary>
 
-| Split | Dates | 15-minute bins | Eight-in/four-out windows |
-|---|---|---:|---:|
-| Training | January-December 2020 | 35,136 | 35,125 |
-| Validation | January-March 2021 | 8,640 | 8,629 |
-| Testing | April-December 2021 | 26,400 | 26,389 |
+AI was used in finding the right dataset since the one from Kaggle was not working and returning 404. Codex was used to write and test code, create graphs, convert equations and expressions to Latex and report ready format. Some major analysis was AI assisted including initial analysis of running training for only 20 Epocs was found to be inadequate because accuracy was still improving and loss was being reduced so the total Epoch count was increased to 40, this was rightly fully identified via AI analysis. Baseline results were ommitted from the measured results and were later added for comparison and sanity.
 
-## Experimental choices
+</details>
 
-Each sensor receives two temporal convolutions (16 channels, width 3), a flattened-history projection to 16 features, and a bias-free 16-to-16 local projection. Graph models add a separate bias-free 16-to-16 projection of adjacency-mixed features before the common ReLU and 16-to-4 head: `H = relu(local(Z) + spatial(A @ Z))`. Temporal-only omits the graph term. Shared encoder, local projection and head initial weights are identical across experiments; graph-only parameters are initialized afterwards.
+## References and attribution
 
-Fixed adjacency first clears the provided diagonal, then adds exactly one unit self-loop and row normalizes. Adaptive adjacency is `softmax(relu(E1 @ E2.T), dim=1)` with two standard-normal 716-by-10 embedding matrices (std 1). It is dense, with no top-k training sparsification. Hybrid adjacency is `0.5*fixed + 0.5*adaptive`, combining row-stochastic terms. Top-ten links are selected only for post-training analysis.
+- Liu et al., *LargeST: A Benchmark Dataset for Large-Scale Traffic Forecasting*, NeurIPS Datasets and Benchmarks 2023. [Paper](https://arxiv.org/abs/2306.08259) · [Official project](https://github.com/liuxu77/LargeST).
+- [Pinned raw-data mirror](https://huggingface.co/datasets/ttydsc30/TrafficForecast-LargeST-Project-Dataset) · [Caltrans PeMS](https://pems.dot.ca.gov/?dnode=Clearinghouse).
+- [PyTorch on Intel GPU](https://docs.pytorch.org/docs/stable/notes/get_start_xpu.html) · [OpenVINO NPU device](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/npu-device.html).
 
-All runs use seed 25280025, batch 64, Adam at 0.002, weight decay 0.0001 on forecasting weights and zero on graph embeddings, norm clipping at 5, maximum 40 epochs and patience 5. The loss is masked original-unit MAE divided by one fixed training-only global scale, preserving equal physical-unit weighting despite per-sensor normalization. Every epoch uses every training window. Independent epoch-seeded permutations keep batch order identical. Node embeddings are excluded from coupled weight decay because an intermediate diagnostic showed that their small gradients otherwise allowed the regularizer to erase them. The adaptive/hybrid runs were repeated after that graph diagnostic; the temporal/fixed runs have no embeddings and are unaffected. No features, graph dependencies or normalization statistics are fitted on validation/test data. XPU seeds are fixed, but bitwise determinism across devices/releases is not guaranteed.
+LargeST data are [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Derived sensor metadata and adjacency retain that license and attribution. Large raw files are not redistributed here. Code is provided for academic reproducibility.
 
-NPU exports freeze the learned adjacency after training and use static batch one, explicit `NPU` compilation and device-default FP16. Batch 16 failed with a measured compiler striding-layout error. The NPU notebook measures full-test accuracy for every model; it does not silently fall back to CPU. GPU and NPU latency configurations differ, so the reported per-batch times are not direct speedup comparisons.
-
-## Attribution and license
-
-Liu et al., *LargeST: A Benchmark Dataset for Large-Scale Traffic Forecasting*, NeurIPS Datasets and Benchmarks 2023. [Paper](https://arxiv.org/abs/2306.08259).
-
-LargeST data are [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Derived sensor metadata and adjacency retain that license and attribution. Large raw files are not redistributed here. The forecasting and experiment code is implemented for this assignment; generative AI assistance is explicitly disclosed.
+[Back to top](#traffic-forecasting-on-graphs)
