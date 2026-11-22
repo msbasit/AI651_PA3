@@ -27,7 +27,7 @@ def graph_stats(a,road,dist):
 @torch.inference_mode()
 def main():
     torch.set_num_threads(8)
-    data=load_data(); mu=float(data['mean']); std=float(data['std'])
+    data=load_data(); mu=data['mean']; std=data['std']
     meta=pd.read_csv(ROOT/'data'/'sd_meta.csv')
     prep=json.loads((ROOT/'results'/'preparation.json').read_text())
     metrics=json.loads((ROOT/'results'/'metrics.json').read_text())
@@ -38,7 +38,8 @@ def main():
     ids=np.flatnonzero((dates[:-11]>=pd.Timestamp('2021-04-12')) & (dates[:-11]<pd.Timestamp('2021-04-14')))
     target_dates=dates[ids+8]
     x=np.stack([data['test'][i:i+8] for i in ids])[...,None]
-    x=torch.tensor((x-mu)/std,device='xpu')
+    x=torch.tensor((x-mu.reshape(1,1,-1,1))/std.reshape(1,1,-1,1),device='xpu')
+    mean_tensor=torch.tensor(mu,device='xpu');std_tensor=torch.tensor(std,device='xpu')
     target=data['test'][ids+8]
     valid=data['test_mask'][ids+8]
     colors={'temporal':'#2878b5','fixed':'#d65f00','adaptive':'#8e44ad','hybrid':'#00866d'}
@@ -56,7 +57,7 @@ def main():
         model=Forecaster(mode,fixed).to('xpu').eval()
         ckpt=torch.load(ROOT/'checkpoints'/f'{mode}.pt',map_location='xpu',weights_only=True)
         model.load_state_dict(ckpt['state_dict'])
-        predictions[mode]=torch.cat([model(x[j:j+32])[:,0,:,0]*std+mu for j in range(0,len(x),32)]).cpu().numpy()
+        predictions[mode]=torch.cat([model(x[j:j+32])[:,0,:,0]*std_tensor+mean_tensor for j in range(0,len(x),32)]).cpu().numpy()
         b=x[:16]
         for _ in range(10):
             model(b)

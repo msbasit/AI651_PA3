@@ -51,7 +51,8 @@ def main():
                 reference=m(torch.from_numpy(x)).numpy()
             print('NPU output:',pred.shape,'max discrepancy:',float(np.max(np.abs(pred-reference))),flush=True)
             return
-        mean=float(data['mean']); std=float(data['std'])
+        mean=data['mean']; std=data['std']
+        output_mean=mean.reshape(1,1,-1,1);output_std=std.reshape(1,1,-1,1)
         xdata=(data['test']-mean)/std
         mask=data['test_mask']
         n=len(xdata)-11
@@ -59,8 +60,8 @@ def main():
         for _ in range(5):
             req.infer({0:warm})
         with torch.no_grad():
-            reference=m(torch.from_numpy(warm)).numpy()*std+mean
-        npu_warm=req.infer({0:warm})[compiled.output(0)].copy()*std+mean
+            reference=m(torch.from_numpy(warm)).numpy()*output_std+output_mean
+        npu_warm=req.infer({0:warm})[compiled.output(0)].copy()*output_std+output_mean
         delta=float(np.max(np.abs(reference-npu_warm)))
         ae=np.zeros(4,np.float64); se=np.zeros(4,np.float64); counts=np.zeros(4,np.float64)
         latencies=[]
@@ -78,7 +79,7 @@ def main():
             e=(pred-target).astype(np.float64)
             ae+=(np.abs(e)*valid).sum((0,2)); se+=(e**2*valid).sum((0,2)); counts+=valid.sum((0,2))
         elapsed=time.perf_counter()-start
-        records[mode]=dict(device=str(core.get_property('NPU','FULL_DEVICE_NAME')),
+        records[mode]=dict(revision=checkpoint['config']['revision'],device=str(core.get_property('NPU','FULL_DEVICE_NAME')),
             execution_devices=compiled.get_property('EXECUTION_DEVICES'),batch=args.batch,windows=n,
             compile_seconds=compile_seconds,test_seconds=elapsed,median_batch_ms=float(np.median(latencies)*1000),
             mae=float(ae.sum()/counts.sum()),rmse=float(np.sqrt(se.sum()/counts.sum())),

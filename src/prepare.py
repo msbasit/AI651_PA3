@@ -25,7 +25,8 @@ def main():
             idx=[columns.index(str(i)) for i in sd.ID]
             assert idx == sorted(idx)
             # h5py reads the selected columns without allocating the full CA matrix.
-            values=h['t/block0_values'][:,idx].astype(np.float32)
+            selection=slice(idx[0],idx[-1]+1) if idx==list(range(idx[0],idx[-1]+1)) else idx
+            values=h['t/block0_values'][:,selection].astype(np.float32)
             dates=pd.to_datetime(h['t/axis1'][:])
         expected=pd.date_range(f'{year}-01-01', f'{year+1}-01-01',freq='5min',inclusive='left')
         df=pd.DataFrame(values,index=dates,columns=sd.ID.astype(str))
@@ -44,10 +45,13 @@ def main():
            'test':full.loc['2021-04-01':'2021-12-31']}
     fallback=parts['train'].median(axis=0).fillna(0)
     train_filled=parts['train'].ffill().fillna(fallback)
-    mu=float(train_filled.to_numpy(dtype=np.float64).mean())
-    std=float(train_filled.to_numpy(dtype=np.float64).std())
-    assert std>0
-    payload={'mean':np.float32(mu),'std':np.float32(std),'ids':sd.ID.to_numpy()}
+    training=train_filled.to_numpy(dtype=np.float64)
+    mu=training.mean(axis=0)
+    raw_std=training.std(axis=0)
+    std=np.where(raw_std<1e-6,1.,raw_std)
+    loss_scale=float(training.std())
+    payload={'mean':mu.astype(np.float32),'std':std.astype(np.float32),
+             'loss_scale':np.float32(loss_scale),'ids':sd.ID.to_numpy()}
     stats={}
     for name,df in parts.items():
         mask=np.isfinite(df.to_numpy())
@@ -83,7 +87,10 @@ def main():
     two.discard(node)
     literal_one=set(np.flatnonzero(A[node]>0).tolist())
     literal_two=literal_one.union(*[set(np.flatnonzero(A[j]>0).tolist()) for j in literal_one]) if literal_one else set()
-    save_json('preparation.json',dict(nodes=716, raw=raw_stats,splits=stats,mean=mu,std=std,
+    save_json('preparation.json',dict(nodes=716, raw=raw_stats,splits=stats,mean=mu.tolist(),std=std.tolist(),
+        normalization='per-sensor training mean and standard deviation',constant_training_sensors=int((raw_std<1e-6).sum()),
+        normalization_mean_range=[float(mu.min()),float(mu.max())],
+        normalization_std_range=[float(std.min()),float(std.max())],loss_scale=loss_scale,
         aggregation='sum of three 5-minute counts; vehicles per 15 minutes',
         selected_plot_nodes=selected,selected_plot_ids=sd.ID.iloc[selected].tolist(),
         nonzero_including_diagonal=int(np.count_nonzero(A)),self_loops=int(np.count_nonzero(np.diag(A))),

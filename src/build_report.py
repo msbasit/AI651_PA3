@@ -83,13 +83,14 @@ The unique minimizer is \(a=0\), \(b=\tfrac12\), with \(\mathcal L_{\min}=\tfrac
 \begin{equation}a=0,\qquad w_-=0,\qquad w_+=1.\end{equation}
 Then \(\widehat x_i(t+1)=x_{i+1}(t)\), exactly the required motion for every input. A PyTorch \texttt{Conv1d} cross-correlation uses
 \begin{equation}\underbrace{[\,0,\ 0,\ 1\,]}_{\text{kernel}}\quad\text{on}\quad[x_{i-1},x_i,x_{i+1}],\end{equation}
-with circular padding of one and no bias. A mathematical convolution reverses its stored-kernel convention. Labeling ahead and behind breaks the reflection ambiguity that persists through stacks of unlabeled symmetric layers.'''),
+with circular padding of one and no bias. A mathematical convolution reverses its stored-kernel convention. In part (a), sensors 19 and 21 are forced to receive the same prediction \(b\), so the asymmetric target \((1,0)\) cannot be fitted. Separate \(w_-\) and \(w_+\) remove this constraint. Direction labels therefore break the reflection ambiguity that persists through stacks of unlabeled symmetric layers.'''),
     ('Choose <b>a=0, b=1, c=-1',r'''Choose \(a=0\), \(b=1\), \(c=-1\), so that
 \begin{equation}\widehat x_i(t+1)=x_{i-1}(t)+x_{i+1}(t)-x_i(t-1).\end{equation}
 For backward motion, \(x_{i-1}(t)=x_i(t-1)\); substitution gives
 \begin{equation}\widehat x_i(t+1)=\cancelterm{x_{i-1}(t)}+x_{i+1}(t)-\cancelterm{x_i(t-1)}=x_{i+1}(t).\end{equation}
 For forward motion, \(x_{i+1}(t)=x_i(t-1)\), so the same coefficients give
-\begin{equation}\widehat x_i(t+1)=x_{i-1}(t)+\cancelterm{x_{i+1}(t)}-\cancelterm{x_i(t-1)}=x_{i-1}(t).\end{equation}'''),
+\begin{equation}\widehat x_i(t+1)=x_{i-1}(t)+\cancelterm{x_{i+1}(t)}-\cancelterm{x_i(t-1)}=x_{i-1}(t).\end{equation}
+Since \(x_{i-1}(t)\) is exactly the forward-motion target, the same coefficients \((a,b,c)=(0,1,-1)\) still work.'''),
     ('PeMS defines five-minute',r'''PeMS defines five-minute total flow in vehicles per five minutes~\cite{pems}. We therefore preserve interval volume by summing:
 \begin{equation}\label{eq:resample}
 X^{(15\,\mathrm{min})}_t=\sum_{k=0}^{2}X^{(5\,\mathrm{min})}_{3t+k}.
@@ -111,15 +112,15 @@ Y_s&=[x_{s+8},x_{s+9},x_{s+10},x_{s+11}].
 Thus \(X_s\in\mathbb R^{8\times716\times1}\), \(Y_s\in\mathbb R^{4\times716\times1}\). Batched tensors add a leading dimension \(B\). No input or target crosses a split boundary; validation and test history also begins within its own split.'''),
     ('We use <b>Â',r'''The fixed graph uses directed row normalization:
 \begin{equation}\label{eq:fixed}
-\widehat A_{\mathrm{fixed}}=D^{-1}(A+I),\qquad D_{ii}=\sum_j(A+I)_{ij}.
+\widehat A_{\mathrm{fixed}}=D^{-1}(A_{\mathrm{off}}+I),\qquad D_{ii}=\sum_j(A_{\mathrm{off}}+I)_{ij}.
 \end{equation}
-Each receiving row is a nonnegative weighted average. This avoids applying a symmetric-graph formula to an asymmetric graph. The provided diagonal is retained, and \(I\) is added literally: an existing unit self-loop becomes weight two before normalization. The fixed matrix is a nontrainable buffer throughout optimization.'''),
-    ('<b>Â<sub>adaptive</sub>',r'''Introduce two trainable matrices \(E_1,E_2\in\mathbb R^{716\times8}\), independently initialized from \(\mathcal N(0,0.1^2)\). Define
+Here \(A_{\mathrm{off}}=A-\operatorname{diag}(\operatorname{diag}A)\). Clearing the supplied diagonal before adding \(I\) gives exactly one unit self-loop. Each receiving row is a nonnegative weighted average; directed normalization avoids assuming symmetry. The raw graph remains unchanged for Section~\ref{sec:q3}; the normalized model graph is a nontrainable buffer throughout optimization.'''),
+    ('<b>Â<sub>adaptive</sub>',r'''Introduce two trainable matrices \(E_1,E_2\in\mathbb R^{716\times10}\), independently initialized from \(\mathcal N(0,1)\). Define
 \begin{align}
 L&=\operatorname{ReLU}(E_1E_2^{\mathsf T}),\\
 (\widehat A_{\mathrm{adaptive}})_{ij}&=\frac{\exp L_{ij}}{\sum_{k=1}^{716}\exp L_{ik}}.
 \end{align}
-Gradients flow from the forecasting loss through the row softmax, positive ReLU logits and embedding product. Negative logits have zero ReLU gradient on that step. All 716 neighbors are retained: training uses neither top-\(k\) selection nor sparsification.'''),
+The standard-normal initialization produces nontrivial logits rather than an almost uniform initial graph. Gradients flow through row softmax, positive ReLU logits and the embedding product; negative logits have zero ReLU gradient on that step. All 716 neighbors are retained, with no top-\(k\) training sparsification.'''),
     ('<b>Â<sub>hybrid</sub>',r'''Combine the consistently normalized matrices using
 \begin{equation}\label{eq:hybrid}
 \widehat A_{\mathrm{hybrid}}=\alpha\widehat A_{\mathrm{fixed}}+(1-\alpha)\widehat A_{\mathrm{adaptive}},\qquad\alpha=0.5.
@@ -142,8 +143,10 @@ def paragraph(text,style='Body'):
     # Native notation for normalization, retaining the measured values in prose.
     result=convert(text)
     result=result.replace(r'max |A-A\ensuremath{{}^{\mathsf T}}|=1.000000',r'\(\max_{i,j}|A_{ij}-A_{ji}|=1.000000\)')
-    if text.startswith('A single global mean'):
-        result+='\n'+r'\begin{equation}\widetilde x=\frac{x-\mu_{\mathrm{train}}}{\sigma_{\mathrm{train}}},\qquad \widehat y=\sigma_{\mathrm{train}}\widehat{\widetilde y}+\mu_{\mathrm{train}}.\end{equation}'
+    if text.startswith('Per-sensor training statistics'):
+        result+='\n'+r'\begin{equation}\widetilde x_{t,i}=\frac{x_{t,i}-\mu_i}{\sigma_i},\qquad \widehat y_{s,h,i}=\sigma_i\widehat{\widetilde y}_{s,h,i}+\mu_i.\end{equation}'
+    if text.startswith('The loss is masked MAE after per-sensor'):
+        result+='\n'+r'\begin{equation}\mathcal L_{\mathcal B}=\frac{1}{s_{\mathrm{train}}C_{\mathcal B}}\sum_{(s,h,i)\in\mathcal B}m_{s,h,i}\,\sigma_i\left|\widehat{\widetilde y}_{s,h,i}-\widetilde y_{s,h,i}\right|.\end{equation}'+'\n'+r'Here \(C_{\mathcal B}\) counts valid batch targets, and \(s_{\mathrm{train}}\) is one scalar standard deviation of the filled training counts, shared by every model.'
     if style=='Caption': return '{\\small '+result+'}\n\n'
     return result+'\n\n'
 
@@ -159,7 +162,8 @@ CELL_MATH={
     'Shared Conv2d(1,16,kernel=(1,3),padding=(0,1)), ReLU; Conv2d(16,16,(1,3),same padding), ReLU. Convolution spans time only.':r'Two temporal convolutions, \(1\to16\) then \(16\to16\) channels, each with a \(1\times3\) kernel, \((0,1)\) padding and ReLU. Node positions are not mixed.',
     'Temporal representation': 'Temporal representation',
     'Flatten each sensor\'s 16×8 feature map, then Linear(128,16), yielding Z in B×716×16.':r'Flatten each sensor\textquotesingle s \(16\times8\) feature map; apply \(\operatorname{Linear}(128,16)\), giving \(Z\in\mathbb R^{B\times716\times16}\).',
-    'H=ReLU(Â Z Wg), Wg in 16×16 with no bias. One node-mixing layer.':r'\(H=\operatorname{ReLU}(\widehat A ZW_g)\), with \(W_g\in\mathbb R^{16\times16}\) and no bias. One node-mixing layer.',
+    'H=ReLU(Z Wlocal + Â Z Wg). The local signal is retained; both 16×16 projections have no bias.':r'\(H=\operatorname{ReLU}(ZW_{\mathrm{local}}+\widehat A ZW_g)\). Both \(16\times16\) projections have no bias. The local representation survives independently of graph averaging.',
+    'Same temporal encoder, local projection and forecasting head. Omit the graph term entirely.':r'Same temporal encoder, local projection and head, with \(H=\operatorname{ReLU}(ZW_{\mathrm{local}})\). No graph term.',
     'Linear(16,4) per sensor, reshaped to B×4×716×1. Predict all horizons directly.':r'\(\operatorname{Linear}(16,4)\) per sensor, yielding \(\widehat Y\in\mathbb R^{B\times4\times716\times1}\). All horizons are predicted directly.'}
 
 CAPTIONS=['Final test comparison in vehicles per 15-minute interval.',
@@ -232,7 +236,7 @@ def build_tex():
         elif event['kind']=='paragraph':
             text=event['text'];style=event['style']
             if section=='Traffic forecasting on graphs':
-                if text.startswith(('AI651 -','Assignment 3 |','<b>Muhammad','<b>Public source','Prepared 21','Scope and outcome','Final test comparison','Hardware')):continue
+                if text.startswith(('AI651 -','Assignment 3 |','<b>Muhammad','<b>Public source','Prepared 21','Revised 22','Scope and outcome','Final test comparison','Hardware')):continue
                 if text.startswith('Questions 1-2'):out.append(r'\begin{abstract}'+convert(text)+'\n')
                 elif text.startswith('The lowest measured'):out.append(convert(text)+r'\end{abstract}'+'\n')
                 else:out.append(paragraph(text,style))

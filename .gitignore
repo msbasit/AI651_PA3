@@ -9,3 +9,5 @@ data/sd_prepared.npz
 *.zip
 checkpoints/*_openvino.bin
 checkpoints/*_openvino.xml
+issues.md
+ISSUE_RESOLUTION.md

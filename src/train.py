@@ -13,6 +13,7 @@ from common import ROOT,load_data,save_json
 from models import Forecaster,normalize_fixed
 
 SEED=25280025
+REVISION='review-2026-11-22-v2'
 
 def seed_all():
     random.seed(SEED); np.random.seed(SEED); torch.manual_seed(SEED)
@@ -36,13 +37,14 @@ class Windows:
 @torch.inference_mode()
 def evaluate(model,windows,std,batch=64):
     model.eval()
+    scale=torch.as_tensor(std,device=windows.device,dtype=torch.float32).reshape(1,1,-1,1)
     # Arc has no native FP64: reduce FP32 batches on XPU, accumulate FP64 on CPU.
     ae=np.zeros(4,dtype=np.float64)
     se=np.zeros_like(ae); count=np.zeros_like(ae)
     for start in range(0,windows.size,batch):
         ids=torch.arange(start,min(start+batch,windows.size),device=windows.device)
         x,y,m=windows.batch(ids)
-        err=(model(x)-y)*std
+        err=(model(x)-y)*scale
         ae+=(err.abs()*m).sum((0,2,3)).cpu().numpy()
         se+=(err.square()*m).sum((0,2,3)).cpu().numpy()
         count+=m.sum((0,2,3)).cpu().numpy()
@@ -52,7 +54,7 @@ def evaluate(model,windows,std,batch=64):
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument('--epochs',type=int,default=20)
+    parser.add_argument('--epochs',type=int,default=40)
     parser.add_argument('--patience',type=int,default=5)
     parser.add_argument('--batch',type=int,default=64)
     parser.add_argument('--modes',nargs='+',default=['temporal','fixed','adaptive','hybrid'])
@@ -61,15 +63,16 @@ def main():
     assert torch.xpu.is_available(),'Intel XPU is required for these experiments'
     torch.set_num_threads(8)
     device=torch.device('xpu')
-    data=load_data(); mean=float(data['mean']); std=float(data['std'])
+    data=load_data(); mean=data['mean']; std=data['std']; loss_scale=float(data['loss_scale'])
     sets={name:Windows(data[name],data[name+'_mask'],mean,std,device) for name in ['train','val','test']}
     fixed=normalize_fixed(torch.tensor(np.load(ROOT/'data'/'sd_adj.npy'),device=device))
-    config=dict(seed=SEED,hidden=16,embedding=8,alpha=.5,batch=args.batch,max_epochs=args.epochs,
+    config=dict(revision=REVISION,seed=SEED,hidden=16,embedding=10,embedding_init_std=1.,alpha=.5,batch=args.batch,max_epochs=args.epochs,
                 patience=args.patience,optimizer='Adam',lr=.002,weight_decay=.0001,clip_norm=5.,
-                loss='masked MAE in globally standardized units',selection='minimum full validation MAE',
-                precision='FP32',fixed_normalization='row-normalize (A+I), original diagonal retained',
+                loss='masked original-unit MAE divided by a single training-only global scale',selection='minimum full validation MAE',
+                precision='FP32',fixed_normalization='clear supplied diagonal, add one unit self-loop, row-normalize',
                 adaptive='dense row-softmax(ReLU(E1 @ E2.T)); no top-k sparsification',
-                mean=mean,std=std)
+                architecture='ReLU(local(Z) + spatial(A @ Z)); temporal-only omits graph term',
+                normalization='per-sensor training-only',mean=mean.tolist(),std=std.tolist(),loss_scale=loss_scale)
     if not args.evaluate_only:
         save_json('config.json',config)
     env=dict(python=sys.version,python_executable=sys.executable,platform=platform.platform(),
@@ -80,10 +83,17 @@ def main():
     save_json('environment.json',env)
     result_path=ROOT/'results'/'metrics.json'
     results=json.loads(result_path.read_text()) if result_path.exists() else {}
+    results={k:v for k,v in results.items() if v.get('revision')==REVISION}
+    scale=torch.tensor(std,device=device).reshape(1,1,-1,1)
     for mode in args.modes:
         seed_all()
         model=Forecaster(mode,fixed).to(device)
         parameters=sum(p.numel() for p in model.parameters())
+        initial_entropy=None
+        if mode in ['adaptive','hybrid']:
+            with torch.no_grad():
+                initial_a=torch.softmax(torch.relu(model.E1@model.E2.T),dim=1)
+                initial_entropy=float(-(initial_a*initial_a.clamp_min(1e-30).log()).sum(1).mean())
         if args.evaluate_only:
             ckpt=torch.load(ROOT/'checkpoints'/f'{mode}.pt',map_location=device,weights_only=True)
             model.load_state_dict(ckpt['state_dict'])
@@ -105,15 +115,15 @@ def main():
             for j in range(0,len(order),args.batch):
                 x,y,mask=sets['train'].batch(order[j:j+args.batch])
                 opt.zero_grad(set_to_none=True)
-                err=(model(x)-y).abs()*mask
-                loss=err.sum()/mask.sum().clamp_min(1)
+                err=((model(x)-y)*scale).abs()*mask
+                loss=err.sum()/mask.sum().clamp_min(1)/loss_scale
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(model.parameters(),5.)
                 opt.step()
                 total[0]+=err.detach().sum(); total[1]+=mask.sum()
             validation=evaluate(model,sets['val'],std,args.batch)
             torch.xpu.synchronize()
-            record=dict(epoch=epoch,train_mae=float(total[0]/total[1]*std),val_mae=validation['mae'],
+            record=dict(epoch=epoch,train_mae=float(total[0]/total[1]),val_mae=validation['mae'],
                         val_rmse=validation['rmse'],seconds=time.perf_counter()-epoch_start)
             history.append(record)
             if validation['mae'] < best:
@@ -136,8 +146,8 @@ def main():
         if graph is not None:
             np.save(ROOT/'results'/f'{mode}_adj.npy',graph.detach().cpu().numpy())
         torch.xpu.synchronize()
-        results[mode]=dict(parameters=parameters,epochs_run=len(history),best_epoch=best_epoch,
-                           training_seconds=elapsed,validation=validation,test=test)
+        results[mode]=dict(revision=REVISION,parameters=parameters,epochs_run=len(history),best_epoch=best_epoch,
+                           initial_adaptive_entropy=initial_entropy,training_seconds=elapsed,validation=validation,test=test)
         save_json('metrics.json',results)
         print('FINAL',mode,results[mode],flush=True)
         del model,opt

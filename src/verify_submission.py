@@ -6,6 +6,7 @@ import nbformat
 import fitz
 import torch
 from common import ROOT,save_json
+from train import REVISION
 
 def main():
     notebooks={}
@@ -22,10 +23,16 @@ def main():
     counts=[metrics[m]['test']['evaluated_values'] for m in metrics]
     assert len(set(counts))==1
     config=json.loads((ROOT/'results'/'config.json').read_text())
+    baselines=json.loads((ROOT/'results'/'baselines.json').read_text())
+    assert config['revision']==REVISION and config['max_epochs']==40 and config['patience']==5
+    assert config['embedding']==10 and config['embedding_init_std']==1
+    assert len(config['mean'])==len(config['std'])==716
+    assert all(v['test']['evaluated_values']==counts[0] and v['revision']==REVISION for v in baselines.values())
     for mode in metrics:
         assert (ROOT/'checkpoints'/f'{mode}.pt').is_file()
         checkpoint=torch.load(ROOT/'checkpoints'/f'{mode}.pt',map_location='cpu',weights_only=True)
         assert checkpoint['config']==config
+        assert metrics[mode]['revision']==npu[mode]['revision']==REVISION
         assert checkpoint['best_epoch']==metrics[mode]['best_epoch']
         assert all(torch.isfinite(value).all() for value in checkpoint['state_dict'].values())
         assert npu[mode]['windows']==26389
@@ -46,9 +53,17 @@ def main():
     tex=(ROOT/'report'/'report.tex').read_text(encoding='utf-8')
     assert all('sec:q'+str(i) in tex for i in range(1,8))
     assert r'\begin{equation}' in tex and r'\begin{align}' in tex
+    assert 'No LMS upload was performed' not in text
+    assert 'independently review the derivations' not in text
+    assert 'Persistence' in text and 'Human contribution and independent review' in text
+    assert 'issues.md' not in text and 'ISSUE_RESOLUTION.md' not in text
+    ignored=(ROOT/'.gitignore').read_text().splitlines()
+    assert 'issues.md' in ignored and 'ISSUE_RESOLUTION.md' in ignored
     save_json('submission_checks.json',dict(notebooks=notebooks,common_test_metric_count=counts[0],
         all_models_have_checkpoints=True,consistent_training_configs=True,finite_checkpoint_weights=True,
         full_test_npu=True,report_pages=len(doc),native_latex_source=True,first_page_identity_and_public_link=True,
+        review_revision=REVISION,persistence_same_test_masks=True,
+        private_review_notes_ignored=True,
         sha256_report=hashlib.file_digest(pdf.open('rb'),'sha256').hexdigest()))
     print('PASS: all four notebooks executed without errors, checkpoints and common full-test metrics present, NPU execution confirmed, report identity/link verified.')
 
