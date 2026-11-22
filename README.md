@@ -8,7 +8,7 @@ Public repository: [msbasit/AI651_PA3](https://github.com/msbasit/AI651_PA3).
 
 ## Deliverables
 
-- `AI651_PA3_Muhammad_Sami_Ul_Basit_25280025.pdf`: technical report and written solutions, with the repository link on its first page.
+- `PA3_25280025_Muhammad_Sami_Ul_Basit.pdf`: technical report and written solutions, with the repository link on its first page.
 - `notebooks/01_theory.ipynb`: exhaustive Q1 encodings and Q2 motion verification/heatmaps.
 - `notebooks/02_data_and_checks.ipynb`: LargeST-SD extraction, plots and meaningful implementation checks.
 - `notebooks/03_forecasting_experiments.ipynb`: temporal-only, fixed, adaptive and hybrid models, their real training outputs and analysis.

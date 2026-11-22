@@ -11,7 +11,7 @@ from report_content import content
 
 REPORT = ROOT/'report'
 BUILD = ROOT/'tmp'/'latex'
-NAME = 'AI651_PA3_Muhammad_Sami_Ul_Basit_25280025.pdf'
+NAME = 'PA3_25280025_Muhammad_Sami_Ul_Basit.pdf'
 REFS = ['largest-repo','mirror','pems','largest-paper','pytorch','openvino']
 
 def escape(text):

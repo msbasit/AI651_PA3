@@ -51,7 +51,7 @@ def main():
         assert abs(npu[mode]['mae']-metrics[mode]['test']['mae'])<.05,'NPU metrics disagree with the selected GPU checkpoint.'
         for split in ['validation','test']:
             assert metrics[mode][split]['rmse']>=metrics[mode][split]['mae']>0
-    pdf=ROOT/'AI651_PA3_Muhammad_Sami_Ul_Basit_25280025.pdf'
+    pdf=ROOT/'PA3_25280025_Muhammad_Sami_Ul_Basit.pdf'
     doc=fitz.open(pdf)
     first=doc[0].get_text()
     assert '25280025' in first and 'Muhammad Sami Ul Basit' in first

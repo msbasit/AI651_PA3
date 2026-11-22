@@ -7,7 +7,7 @@ from PIL import Image,ImageOps,ImageDraw
 from common import ROOT,save_json
 
 def main():
-    path=ROOT/'AI651_PA3_Muhammad_Sami_Ul_Basit_25280025.pdf'
+    path=ROOT/'PA3_25280025_Muhammad_Sami_Ul_Basit.pdf'
     out=ROOT/'tmp'/'pdfs';out.mkdir(parents=True,exist_ok=True)
     doc=fitz.open(path)
     poppler=shutil.which('pdftoppm')
